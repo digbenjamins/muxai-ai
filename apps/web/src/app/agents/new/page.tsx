@@ -185,6 +185,10 @@ export default function NewAgentPage() {
             useChrome: useChrome || undefined,
             persistLogs: persistLogs || undefined,
             maxTurnsPerRun: Number(form.maxTurnsPerRun),
+            ...(selectedTemplate ? (() => {
+              const tpl = AGENT_TEMPLATES.find((t) => t.id === selectedTemplate);
+              return tpl?.resultCard ? { resultCard: tpl.resultCard } : {};
+            })() : {}),
           },
           runtimeConfig:
             schedulePreset !== "disabled"

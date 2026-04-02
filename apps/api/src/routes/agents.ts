@@ -141,8 +141,18 @@ agentRoutes.patch("/:id", async (req, res) => {
     res.status(400).json({ error: parsed.error.flatten() });
     return;
   }
+
+  // Merge adapterConfig with existing values so the edit form doesn't wipe
+  // fields it doesn't manage (resultCard, notifications, etc.)
+  const data = { ...parsed.data };
+  if (data.adapterConfig) {
+    const existing = await prisma.agent.findUnique({ where: { id: req.params.id }, select: { adapterConfig: true } });
+    const existingConfig = (existing?.adapterConfig ?? {}) as Record<string, unknown>;
+    data.adapterConfig = { ...existingConfig, ...data.adapterConfig };
+  }
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const agent = await prisma.agent.update({ where: { id: req.params.id }, data: parsed.data as any });
+  const agent = await prisma.agent.update({ where: { id: req.params.id }, data: data as any });
   syncAgentSchedule(agent.id, agent.runtimeConfig, agent.status);
   res.json(agent);
 });

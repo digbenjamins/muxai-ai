@@ -28,9 +28,29 @@ export interface AgentTemplate {
   schedulePreset: string;
   useChrome?: boolean;
   persistLogs?: boolean;
+  resultCard?: { type: string; mapping: Record<string, string> };
 }
 
 export const AGENT_TEMPLATES: AgentTemplate[] = [
+  {
+    id: "team-lead",
+    label: "Team Lead",
+    description: "Lead orchestrator — gathers findings from all team members and outputs a final decision.",
+    mcpPreset: "builtin",
+    schedulePreset: "disabled",
+    resultCard: { type: "research-summary", mapping: {} },
+    form: {
+      name: "Team Lead",
+      role: "ceo",
+      title: "Team Lead",
+      capabilities: "You are an expert Team Lead skilled at gathering team feedback, facilitating constructive discussions, and making concise, well-reasoned decisions. Always stay professional, balanced, and solution-oriented. Be concise and decisive, keeping in mind your teams feedback.",
+      model: "claude-opus-4-6",
+      cwd: "",
+      allowedTools: "",
+      maxTurnsPerRun: "30",
+      customCron: "",
+    },
+  },
   {
     id: "news-analyst",
     label: "News Analyst",
@@ -83,24 +103,6 @@ export const AGENT_TEMPLATES: AgentTemplate[] = [
       cwd: "",
       allowedTools: "",
       maxTurnsPerRun: "15",
-      customCron: "",
-    },
-  },
-  {
-    id: "mux",
-    label: "mux",
-    description: "Lead orchestrator — spawns the team, collects findings, outputs trade decision.",
-    mcpPreset: "builtin",
-    schedulePreset: "disabled",
-    form: {
-      name: "mux",
-      role: "ceo",
-      title: "Lead Trade Analyst",
-      capabilities: "Team coordination, trade decision synthesis, risk/reward calculation",
-      model: "claude-opus-4-6",
-      cwd: "",
-      allowedTools: "",
-      maxTurnsPerRun: "30",
       customCron: "",
     },
   },

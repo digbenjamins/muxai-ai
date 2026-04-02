@@ -6,6 +6,7 @@ dist
 .next
 .turbo
 *.tsbuildinfo
+apps/web/next-env.d.ts
 
 # environment
 .env

@@ -183,8 +183,8 @@ export default function EditAgentPage() {
             allowedTools: form.allowedTools || undefined,
             promptTemplate: form.promptTemplate || undefined,
             defaultPrompt: form.defaultPrompt || undefined,
-            useChrome: useChrome || undefined,
-            persistLogs: persistLogs || undefined,
+            useChrome,
+            persistLogs,
             maxTurnsPerRun: Number(form.maxTurnsPerRun),
           },
           runtimeConfig: cronValue
