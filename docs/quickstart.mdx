@@ -32,6 +32,14 @@ Before you begin, make sure you have:
       ```
     </CodeGroup>
 
+    <Warning>
+      On Windows, if you get a script execution error, run this first in your PowerShell session:
+      ```powershell
+      Set-ExecutionPolicy Bypass -Scope Process
+      ```
+      This allows scripts to run for the current session only.
+    </Warning>
+
     The script will prompt you for:
     1. **Missing dependencies** - Offers to install Node.js, pnpm, and Claude CLI if not found
     2. **Database type** - Embedded (zero setup), Docker, or external PostgreSQL
