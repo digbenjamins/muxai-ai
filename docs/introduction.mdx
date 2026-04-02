@@ -1,30 +1,43 @@
 ---
 title: "What is muxAI?"
-description: "An AI multiplexer that orchestrates multi-agent teams for crypto trade analysis."
+description: "A self-hosted platform for orchestrating multi-agent AI teams. Give each agent a role, connect tools via MCP, and let them collaborate."
 ---
 
 ## Overview
 
-muxAI is a self-hosted platform that orchestrates multiple AI agents into collaborative teams. Each agent has a specialized role, such as technical analysis, news sentiment, or on-chain data, and they discuss findings with each other before a lead agent synthesizes a final trade decision.
+muxAI is a self-hosted platform that orchestrates multiple AI agents into collaborative teams. You define agents with specialized roles, give them tools via MCP (Model Context Protocol), and let them work together. A lead agent synthesizes their findings into a structured output.
 
-Think of it as a trading desk where every analyst is an AI, and you control the room.
+Build a research team, a trading desk, a content pipeline, a code review squad, or anything else where multiple perspectives produce better results than one.
 
 ## How it works
 
 <Steps>
-  <Step title="Define a team">
-    Configure a team prompt that specifies which agents to spin up, what tools they can use, and what asset/timeframe to analyze.
+  <Step title="Create agents">
+    Define agents with a role, a system prompt, and the MCP tools they need. Use built-in templates or start from scratch.
   </Step>
-  <Step title="Agents do their work">
-    Each agent runs independently using its assigned tools: chart analysis via MCP, news feeds, derivatives data, macro calendars, and more.
+  <Step title="Build a team">
+    Assign agents to a lead. The lead orchestrates reporters, each running independently with their own tools and instructions.
   </Step>
-  <Step title="Discussion round">
-    Agents share their findings with each other, note agreements or conflicts, and state whether they maintain, revise, or reverse their bias.
+  <Step title="Agents collaborate">
+    Agents share findings with each other, note agreements or conflicts, and refine their positions before reporting back.
   </Step>
   <Step title="Lead synthesizes">
-    The lead agent collects all final positions and outputs a structured trade decision: LONG, SHORT, or WAIT, with entry, targets, stop loss, and reasoning.
+    The lead agent collects all reports and produces a structured output, a decision, summary, recommendation, or whatever your use case requires.
   </Step>
 </Steps>
+
+## Example: crypto trade analysis
+
+A trading team with three reporters and a lead:
+
+| Agent | Role | Tools |
+|-------|------|-------|
+| **Technical Analyst** | Reads price charts, identifies patterns, support/resistance, indicator readings | Chart analysis MCP |
+| **News Analyst** | Scans headlines, assesses sentiment, flags market-moving events | News feeds, CoinMarketCap MCP |
+| **Data Analyst** | Analyzes Open Interest, Funding Rates, Fear & Greed, on-chain metrics | CoinMarketCap MCP, web search |
+| **Lead (mux)** | Synthesizes all findings into a LONG / SHORT / WAIT decision with entry, targets, and stop loss | Orchestrator MCP |
+
+This is just one configuration. You can create teams for any domain by changing the agents, prompts, and tools.
 
 ## Architecture
 
@@ -32,28 +45,20 @@ muxAI is a monorepo with two main apps:
 
 <Columns cols={2}>
   <Card title="API" icon="server">
-    Express backend that manages agent runs, persists results to PostgreSQL, and exposes a REST API. Handles tool orchestration via MCP (Model Context Protocol) servers.
+    Express backend that manages agents, runs, and results. Persists to PostgreSQL and handles tool orchestration via MCP servers.
   </Card>
   <Card title="Web" icon="browser">
-    Next.js dashboard where you launch analysis runs, view results, manage agent configurations, and monitor activity.
+    Next.js dashboard where you create agents, launch runs, view results, manage MCP servers, and monitor activity in real time.
   </Card>
 </Columns>
 
-### Agent roles
-
-| Role | Responsibility |
-|------|---------------|
-| **Technical Analyst** | Reads price charts, identifies patterns, support/resistance, indicator readings |
-| **News Analyst** | Scans headlines, assesses sentiment, flags market-moving events |
-| **Data Analyst** | Analyzes Open Interest, Funding Rates, Fear & Greed, and on-chain metrics |
-| **Lead** | Synthesizes all findings into a final LONG / SHORT / WAIT decision |
-
 ### Tools via MCP
 
-Agents access external data through MCP servers, which are defined in your `.mcp.json` configuration:
+Agents access external data and capabilities through MCP (Model Context Protocol) servers. muxAI ships with built-in servers and supports adding custom ones through the UI:
 
-- **chart-analyst** - Chart image analysis with pattern recognition
-- **cmc-mcp** - CoinMarketCap data: quotes, technical analysis, macro events, trending narratives
+- **Built-in** servers for news, chart analysis, and team orchestration
+- **Custom** servers added via the MCP Servers page (stdio or HTTP)
+- **Contractors** for routing tasks to non-Claude models (GPT-4o, Grok, etc.) via OpenRouter-compatible APIs
 
 ## Tech stack
 
@@ -70,7 +75,9 @@ Agents access external data through MCP servers, which are defined in your `.mcp
 
 ## What you get
 
-- **Structured trade decisions** in JSON with entry, take profit, stop loss, risk/reward ratio, confidence level, and analyst summaries
-- **Full audit trail** of every agent run, what each analyst found, and how the consensus was reached
+- **Multi-agent collaboration** with structured team hierarchies and real-time streaming
+- **Structured outputs** captured as JSON from every run
+- **Full audit trail** of every agent run, what each agent found, and how they reached consensus
+- **MCP tool ecosystem** with built-in servers, custom server registration, and contractor support
 - **Self-hosted** with no external dependencies beyond your API keys
-- **Extensible** with new agent roles, MCP tools, and analysis frameworks
+- **Extensible** with new agent roles, MCP tools, and output formats
