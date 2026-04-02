@@ -167,16 +167,6 @@ Check the API health endpoint:
 curl http://localhost:3001/api/health
 ```
 
-## Configure MCP servers
-
-muxAI agents use MCP (Model Context Protocol) servers as their tools. Copy the example config:
-
-```bash
-cp .mcp.json.example .mcp.json
-```
-
-Edit `.mcp.json` to add your API keys for the MCP servers your agents will use (chart analysis, CoinMarketCap data, etc.).
-
 ## Updating
 
 Pull the latest changes and rebuild:
