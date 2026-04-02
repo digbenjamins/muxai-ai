@@ -1,0 +1,15 @@
+volumes:
+  ssvolume:
+
+services:
+  db:
+    image: postgres:18
+    restart: always
+    environment:
+      POSTGRES_DB: muxai
+      POSTGRES_USER: muxai_user
+      POSTGRES_PASSWORD: muxai_password
+    volumes:
+      - ssvolume:/var/lib/postgresql
+    ports:
+      - "5432:5432"

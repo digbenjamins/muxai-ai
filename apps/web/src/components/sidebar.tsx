@@ -1,0 +1,134 @@
+"use client";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { LayoutDashboard, PlusCircle, Plug, Radio, FlaskConical, Users, FileJson, Settings, Handshake, MessageSquare } from "lucide-react";
+import Image from "next/image";
+import { cn } from "@/lib/utils";
+
+const platformNav = [
+  { href: "/", label: "Dashboard", icon: LayoutDashboard, exact: true },
+  { href: "/mcp-servers", label: "MCP Servers", icon: Plug },
+  { href: "/settings", label: "Settings", icon: Settings },
+];
+
+const agentsNav = [
+  { href: "/agents/new", label: "New Agent", icon: PlusCircle, exact: true },
+  { href: "/agents", label: "Agents", icon: Users },
+  { href: "/contractors", label: "Contractors", icon: Handshake },
+  { href: "/chat", label: "Chat", icon: MessageSquare },
+];
+
+export function Sidebar() {
+  const pathname = usePathname();
+
+  function isActive(href: string, exact?: boolean) {
+    if (exact) return pathname === href;
+    if (href === "/agents") {
+      // Active for /agents and /agents/[id] but NOT /agents/new or /agents/[id]/edit
+      return pathname === "/agents" || (pathname.startsWith("/agents/") && !pathname.endsWith("/new") && !pathname.includes("/edit"));
+    }
+    return pathname.startsWith(href);
+  }
+
+  return (
+    <aside className="w-56 border-r border-border bg-background flex flex-col">
+      {/* Brand */}
+      <div className="flex items-center px-5 py-5 border-b border-border">
+        <Image src="/ai_agents_multiplexer.png" alt="muxAI" width={0} height={0} sizes="100vw" style={{ height: "22px", width: "auto" }} />
+      </div>
+
+      {/* Nav */}
+      <nav className="flex-1 py-4 px-3 space-y-4 overflow-y-auto">
+
+        {/* Platform */}
+        <div className="space-y-0.5">
+          <p className="px-2 pb-2 text-xs font-semibold text-muted-foreground/60 uppercase tracking-widest">Platform</p>
+          {platformNav.map(({ href, label, icon: Icon, exact }) => (
+            <Link
+              key={href}
+              href={href}
+              className={cn(
+                "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+                isActive(href, exact)
+                  ? "bg-primary/10 text-primary"
+                  : "text-muted-foreground hover:bg-accent hover:text-foreground"
+              )}
+            >
+              <Icon className={cn("h-4 w-4", isActive(href, exact) ? "text-primary" : "text-muted-foreground")} />
+              {label}
+            </Link>
+          ))}
+        </div>
+
+        {/* Agents */}
+        <div className="space-y-0.5">
+          <p className="px-2 pb-2 text-xs font-semibold text-muted-foreground/60 uppercase tracking-widest">Agents</p>
+          {agentsNav.map(({ href, label, icon: Icon, exact }) => (
+            <Link
+              key={href}
+              href={href}
+              className={cn(
+                "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+                isActive(href, exact)
+                  ? "bg-primary/10 text-primary"
+                  : "text-muted-foreground hover:bg-accent hover:text-foreground"
+              )}
+            >
+              <Icon className={cn("h-4 w-4", isActive(href, exact) ? "text-primary" : "text-muted-foreground")} />
+              {label}
+            </Link>
+          ))}
+        </div>
+
+        <div className="border-t border-border" />
+
+        {/* Tools */}
+        <div className="space-y-0.5">
+          <p className="px-2 pb-2 text-xs font-semibold text-muted-foreground/60 uppercase tracking-widest">Tools</p>
+          <Link
+            href="/sandbox"
+            className={cn(
+              "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+              isActive("/sandbox")
+                ? "bg-accent text-accent-foreground"
+                : "text-muted-foreground hover:bg-accent/50 hover:text-accent-foreground"
+            )}
+          >
+            <FlaskConical className={cn("h-4 w-4", isActive("/sandbox") ? "text-foreground" : "text-muted-foreground")} />
+            Sandbox
+          </Link>
+          <Link
+            href="/results"
+            className={cn(
+              "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+              isActive("/results")
+                ? "bg-accent text-accent-foreground"
+                : "text-muted-foreground hover:bg-accent/50 hover:text-accent-foreground"
+            )}
+          >
+            <FileJson className={cn("h-4 w-4", isActive("/results") ? "text-foreground" : "text-muted-foreground")} />
+            Results
+          </Link>
+          <Link
+            href="/streams"
+            className={cn(
+              "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+              isActive("/streams")
+                ? "bg-accent text-accent-foreground"
+                : "text-muted-foreground hover:bg-accent/50 hover:text-accent-foreground"
+            )}
+          >
+            <Radio className={cn("h-4 w-4", isActive("/streams") ? "text-foreground" : "text-muted-foreground")} />
+            Stream History
+          </Link>
+        </div>
+
+      </nav>
+
+      {/* Footer */}
+      <div className="px-5 py-4 border-t border-border">
+        <p className="text-xs text-muted-foreground/50 font-mono">v0.1.0</p>
+      </div>
+    </aside>
+  );
+}

@@ -1,0 +1,76 @@
+---
+title: "What is muxAI?"
+description: "An AI multiplexer that orchestrates multi-agent teams for crypto trade analysis."
+---
+
+## Overview
+
+muxAI is a self-hosted platform that orchestrates multiple AI agents into collaborative teams. Each agent has a specialized role, such as technical analysis, news sentiment, or on-chain data, and they discuss findings with each other before a lead agent synthesizes a final trade decision.
+
+Think of it as a trading desk where every analyst is an AI, and you control the room.
+
+## How it works
+
+<Steps>
+  <Step title="Define a team">
+    Configure a team prompt that specifies which agents to spin up, what tools they can use, and what asset/timeframe to analyze.
+  </Step>
+  <Step title="Agents do their work">
+    Each agent runs independently using its assigned tools: chart analysis via MCP, news feeds, derivatives data, macro calendars, and more.
+  </Step>
+  <Step title="Discussion round">
+    Agents share their findings with each other, note agreements or conflicts, and state whether they maintain, revise, or reverse their bias.
+  </Step>
+  <Step title="Lead synthesizes">
+    The lead agent collects all final positions and outputs a structured trade decision: LONG, SHORT, or WAIT, with entry, targets, stop loss, and reasoning.
+  </Step>
+</Steps>
+
+## Architecture
+
+muxAI is a monorepo with two main apps:
+
+<Columns cols={2}>
+  <Card title="API" icon="server">
+    Express backend that manages agent runs, persists results to PostgreSQL, and exposes a REST API. Handles tool orchestration via MCP (Model Context Protocol) servers.
+  </Card>
+  <Card title="Web" icon="browser">
+    Next.js dashboard where you launch analysis runs, view results, manage agent configurations, and monitor activity.
+  </Card>
+</Columns>
+
+### Agent roles
+
+| Role | Responsibility |
+|------|---------------|
+| **Technical Analyst** | Reads price charts, identifies patterns, support/resistance, indicator readings |
+| **News Analyst** | Scans headlines, assesses sentiment, flags market-moving events |
+| **Data Analyst** | Analyzes Open Interest, Funding Rates, Fear & Greed, and on-chain metrics |
+| **Lead** | Synthesizes all findings into a final LONG / SHORT / WAIT decision |
+
+### Tools via MCP
+
+Agents access external data through MCP servers, which are defined in your `.mcp.json` configuration:
+
+- **chart-analyst** - Chart image analysis with pattern recognition
+- **cmc-mcp** - CoinMarketCap data: quotes, technical analysis, macro events, trending narratives
+
+## Tech stack
+
+| Layer | Technology |
+|-------|-----------|
+| Runtime | Node.js 18+ |
+| Package manager | pnpm (monorepo with workspaces) |
+| API | Express + TypeScript |
+| Web | Next.js + React + Tailwind CSS |
+| Database | PostgreSQL (embedded PGlite or external) |
+| ORM | Prisma |
+| AI orchestration | Claude CLI + MCP servers |
+| Build system | Turborepo |
+
+## What you get
+
+- **Structured trade decisions** in JSON with entry, take profit, stop loss, risk/reward ratio, confidence level, and analyst summaries
+- **Full audit trail** of every agent run, what each analyst found, and how the consensus was reached
+- **Self-hosted** with no external dependencies beyond your API keys
+- **Extensible** with new agent roles, MCP tools, and analysis frameworks

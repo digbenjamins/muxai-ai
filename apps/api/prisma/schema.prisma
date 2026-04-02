@@ -1,0 +1,208 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─── Agent ────────────────────────────────────────────────────────────────────
+
+model Agent {
+  id            String   @id @default(uuid())
+  name          String
+  role          String   @default("general")
+  title         String?
+  status        AgentStatus @default(idle)
+  capabilities  String?
+
+  // Adapter — how the agent is invoked
+  adapterType   String   @default("claude_local")
+  adapterConfig Json     @default("{}")
+
+  // Runtime — heartbeat scheduling config
+  runtimeConfig Json     @default("{}")
+
+  // Org hierarchy — self-relation
+  reportsToId   String?
+  reportsTo     Agent?   @relation("AgentHierarchy", fields: [reportsToId], references: [id])
+  reports       Agent[]  @relation("AgentHierarchy")
+
+  metadata      Json?
+
+  // x402 wallets — autonomous payments
+  walletAddress    String?  // Solana address (base58)
+  walletKey        String?  // Solana keypair — AES-GCM encrypted JSON int array
+  walletAddressEvm String?  // Base/EVM address (0x...)
+  walletKeyEvm     String?  // EVM private key — AES-GCM encrypted hex string
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  runs          HeartbeatRun[]
+  wakeupRequests WakeupRequest[]
+
+  @@map("agents")
+}
+
+enum AgentStatus {
+  idle
+  running
+  paused
+  error
+  terminated
+}
+
+// ─── Heartbeat Run ────────────────────────────────────────────────────────────
+
+model HeartbeatRun {
+  id               String   @id @default(uuid())
+  agentId          String
+  agent            Agent    @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  status           RunStatus @default(queued)
+  invocationSource String   @default("on_demand") // on_demand | scheduler | callback
+  triggerDetail    String?
+
+  startedAt        DateTime?
+  finishedAt       DateTime?
+  exitCode         Int?
+  errorMsg         String?
+
+  // Raw stdout/stderr captured from the claude process
+  logs             String?
+
+  // Token / cost tracking
+  usageJson        Json?
+  resultJson       Json?
+
+  // Session persistence across heartbeats
+  sessionIdBefore  String?
+  sessionIdAfter   String?
+
+  wakeupRequestId  String?
+  wakeupRequest    WakeupRequest? @relation(fields: [wakeupRequestId], references: [id])
+
+  createdAt        DateTime @default(now())
+
+  @@map("heartbeat_runs")
+}
+
+enum RunStatus {
+  queued
+  running
+  succeeded
+  failed
+  cancelled
+  timed_out
+}
+
+// ─── Custom MCP Server ────────────────────────────────────────────────────────
+
+model McpServer {
+  id          String   @id @default(uuid())
+  name        String   @unique   // key used in mcpServers JSON (e.g. "my-server")
+  label       String
+  command     String            // for stdio: binary; for http: the URL
+  args        Json     @default("[]")   // string[] — stdio only
+  headers     Json?             // Record<string,string> — http only
+  description String?
+  createdAt   DateTime @default(now())
+
+  @@map("mcp_servers")
+}
+
+// ─── Contractor ───────────────────────────────────────────────────────────────
+
+model Contractor {
+  id          String           @id @default(uuid())
+  name        String           @unique
+  description String?
+  provider    String           @default("openrouter")
+  apiKey      String
+  model       String
+  baseUrl     String           @default("https://openrouter.ai/api/v1")
+  status      ContractorStatus @default(active)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  @@map("contractors")
+}
+
+enum ContractorStatus {
+  active
+  inactive
+}
+
+// ─── Agent Role ───────────────────────────────────────────────────────────────
+
+model AgentRole {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  description String?
+  createdAt   DateTime @default(now())
+
+  @@map("agent_roles")
+}
+
+// ─── Settings ─────────────────────────────────────────────────────────────────
+
+model Setting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+
+  @@map("settings")
+}
+
+// ─── Chat ─────────────────────────────────────────────────────────────────────
+
+model ChatSession {
+  id              String        @id @default(uuid())
+  agentId         String?       // null = general chat
+  claudeSessionId String?       // last known Claude --resume session ID
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  messages        ChatMessage[]
+
+  @@map("chat_sessions")
+}
+
+model ChatMessage {
+  id        String      @id @default(uuid())
+  sessionId String
+  session   ChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  role      String      // "user" | "assistant"
+  content   String
+  ts        DateTime    @default(now())
+
+  @@map("chat_messages")
+}
+
+// ─── Wakeup Request ───────────────────────────────────────────────────────────
+
+model WakeupRequest {
+  id          String   @id @default(uuid())
+  agentId     String
+  agent       Agent    @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  source      String   @default("on_demand") // on_demand | timer | assignment | automation
+  reason      String?
+  payload     Json     @default("{}")
+
+  status      WakeupStatus @default(queued)
+
+  requestedAt DateTime @default(now())
+  claimedAt   DateTime?
+  finishedAt  DateTime?
+
+  runs        HeartbeatRun[]
+
+  @@map("wakeup_requests")
+}
+
+enum WakeupStatus {
+  queued
+  claimed
+  finished
+}

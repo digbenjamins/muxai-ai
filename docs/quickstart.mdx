@@ -1,0 +1,207 @@
+---
+title: "Quickstart"
+description: "Get muxAI running locally in minutes. Choose the install script or set everything up manually."
+---
+
+## Prerequisites
+
+Before you begin, make sure you have:
+
+- **Node.js 18+** - [nodejs.org](https://nodejs.org)
+- **pnpm** - Install with `npm i -g pnpm`
+- **Claude CLI** - [claude.ai/code](https://claude.ai/code)
+- **Git** - To clone the repository
+
+## Choose your path
+
+<Tabs>
+  <Tab title="Install script" icon="wand-magic-sparkles">
+    The install script checks dependencies, sets up your `.env`, configures the database, builds the project, and gives you a choice of run mode (PM2 or manual).
+
+    <CodeGroup>
+      ```bash macOS / Linux
+      git clone https://github.com/muxai-io/muxai.git
+      cd muxai
+      bash install/install.sh
+      ```
+
+      ```powershell Windows
+      git clone https://github.com/muxai-io/muxai.git
+      cd muxai
+      .\install\install.ps1
+      ```
+    </CodeGroup>
+
+    The script will prompt you for:
+    1. **Missing dependencies** - Offers to install Node.js, pnpm, and Claude CLI if not found
+    2. **Database type** - Embedded (zero setup), Docker, or external PostgreSQL
+    3. **Run mode** - PM2 (background service) or manual (start/stop yourself)
+
+    <Tip>
+      Pass `--yes` (bash) or `-Yes` (PowerShell) to skip all prompts and use defaults: embedded database + manual run mode.
+    </Tip>
+
+    Once the script finishes, jump to [Verify the install](#verify-the-install).
+  </Tab>
+
+  <Tab title="Manual setup" icon="terminal">
+    ### 1. Clone and install dependencies
+
+    ```bash
+    git clone https://github.com/muxai-io/muxai.git
+    cd muxai
+    pnpm install
+    ```
+
+    ### 2. Configure environment
+
+    ```bash
+    cp .env.example .env
+    ```
+
+    Open `.env` and set the required values:
+
+    ```bash .env
+    # Database - pick one:
+    # Leave commented out for embedded (zero setup, recommended)
+    # DATABASE_URL=embedded
+
+    # Or point to your own PostgreSQL:
+    # DATABASE_URL="postgresql://user:password@localhost:5432/muxai"
+
+    # API
+    API_PORT=3001
+    API_KEY=your-secret-key-change-me
+    NEXT_PUBLIC_API_URL=http://localhost:3001
+
+    # Internal secrets
+    MUXAI_INTERNAL_SECRET=muxai-internal-secret-change-me
+    WALLET_ENCRYPTION_KEY=change-me-64-hex-chars
+
+    # Claude CLI
+    CLAUDE_CLI_PATH=claude
+    ```
+
+    Generate secure values for the secrets:
+
+    ```bash
+    # Run this three times, once for each secret
+    node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+    ```
+
+    Replace `API_KEY`, `MUXAI_INTERNAL_SECRET`, and `WALLET_ENCRYPTION_KEY` with the generated values.
+
+    ### 3. Database setup
+
+    <AccordionGroup>
+      <Accordion title="Embedded PostgreSQL (recommended)" icon="database" defaultOpen={true}>
+        No setup needed. Leave `DATABASE_URL` commented out or set to `embedded` in your `.env`. The API starts an in-process PGlite instance automatically on first run.
+      </Accordion>
+
+      <Accordion title="Docker" icon="docker">
+        ```bash
+        docker compose up -d db
+        ```
+
+        Then set in `.env`:
+
+        ```bash
+        DATABASE_URL="postgresql://muxai_user:muxai_password@localhost:5432/muxai"
+        ```
+
+        Push the schema:
+
+        ```bash
+        pnpm --filter @muxai/api db:push
+        ```
+      </Accordion>
+
+      <Accordion title="External PostgreSQL" icon="server">
+        Point `DATABASE_URL` to your instance:
+
+        ```bash
+        DATABASE_URL="postgresql://user:password@your-host:5432/muxai"
+        ```
+
+        Push the schema:
+
+        ```bash
+        pnpm --filter @muxai/api db:push
+        ```
+      </Accordion>
+    </AccordionGroup>
+
+    ### 4. Build
+
+    ```bash
+    pnpm --filter @muxai/api build
+    pnpm --filter @muxai/web build
+    ```
+
+    ### 5. Start
+
+    ```bash
+    pnpm start
+    ```
+
+    Or for development with hot reload (no build needed):
+
+    ```bash
+    pnpm dev
+    ```
+  </Tab>
+</Tabs>
+
+## Verify the install
+
+Once running, confirm both services are up:
+
+| Service | URL |
+|---------|-----|
+| **Web portal** | [http://localhost:3000](http://localhost:3000) |
+| **API** | [http://localhost:3001](http://localhost:3001) |
+
+Check the API health endpoint:
+
+```bash
+curl http://localhost:3001/api/health
+```
+
+## Configure MCP servers
+
+muxAI agents use MCP (Model Context Protocol) servers as their tools. Copy the example config:
+
+```bash
+cp .mcp.json.example .mcp.json
+```
+
+Edit `.mcp.json` to add your API keys for the MCP servers your agents will use (chart analysis, CoinMarketCap data, etc.).
+
+## Updating
+
+Pull the latest changes and rebuild:
+
+<CodeGroup>
+  ```bash macOS / Linux
+  bash install/update.sh
+  ```
+
+  ```powershell Windows
+  .\install\update.ps1
+  ```
+</CodeGroup>
+
+Or manually:
+
+```bash
+git pull
+pnpm install
+pnpm --filter @muxai/api build
+pnpm --filter @muxai/web build
+```
+
+If you're using PM2, restart after updating:
+
+```bash
+pm2 restart ecosystem.config.js --update-env
+```

@@ -1,0 +1,24 @@
+{
+  "mcpServers": {
+    "news-analyst": {
+      "command": "node",
+      "args": ["packages/mcp-news-analyst/index.js"]
+    },
+    "chart-analyst": {
+      "command": "node",
+      "args": ["packages/mcp-chart-analyst/index.js"]
+    },
+    "orchestrator": {
+      "command": "node",
+      "args": ["packages/mcp-orchestrator/index.js"]
+    },
+    "contractor": {
+      "command": "node",
+      "args": ["packages/mcp-contractor/index.js"]
+    },
+    "wallet": {
+      "command": "node",
+      "args": ["packages/mcp-wallet/index.js"]
+    }
+  }
+}

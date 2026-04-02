@@ -1,0 +1,30 @@
+{
+  "name": "muxai-io",
+  "private": true,
+  "scripts": {
+    "build": "turbo run build",
+    "start": "turbo run start",
+    "dev": "turbo run dev",
+    "lint": "turbo run lint",
+    "db:generate": "turbo run db:generate",
+    "db:push": "turbo run db:push",
+    "db:migrate": "turbo run db:migrate",
+    "typecheck": "turbo run typecheck"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.0",
+    "@solana/kit": "^6.5.0",
+    "@x402/axios": "^2.8.0",
+    "@x402/core": "^2.8.0",
+    "@x402/evm": "^2.8.0",
+    "@x402/svm": "^2.8.0",
+    "axios": "^1.14.0",
+    "fast-xml-parser": "^5.5.9",
+    "viem": "^2.47.6"
+  },
+  "devDependencies": {
+    "turbo": "^2.3.3",
+    "typescript": "^5.7.2"
+  },
+  "packageManager": "pnpm@9.15.0"
+}

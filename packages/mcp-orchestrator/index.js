@@ -1,0 +1,146 @@
+#!/usr/bin/env node
+import { Server } from "@modelcontextprotocol/sdk/server/index.js";
+import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
+
+const server = new Server(
+  { name: "orchestrator", version: "1.0.0" },
+  { capabilities: { tools: {} } }
+);
+
+function getTeam() {
+  const raw = process.env.MUXAI_REPORTS;
+  if (!raw) return [];
+  try { return JSON.parse(raw); } catch { return []; }
+}
+
+function getApiUrl() {
+  return process.env.MUXAI_API_URL || "http://localhost:3001";
+}
+
+function internalHeaders() {
+  const secret = process.env.MUXAI_INTERNAL_SECRET;
+  return secret ? { "x-muxai-internal": secret } : {};
+}
+
+function log(msg) {
+  process.stderr.write(`[orchestrator] ${msg}\n`);
+}
+
+async function invokeAgent(agentId, task) {
+  const res = await fetch(`${getApiUrl()}/api/agents/${agentId}/invoke`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...internalHeaders() },
+    body: JSON.stringify({ task }),
+  });
+  if (!res.ok) throw new Error(`Failed to invoke agent ${agentId}: ${res.status}`);
+  return res.json();
+}
+
+async function pollRun(runId, agentName, intervalMs = 4000, timeoutMs = 300000) {
+  const deadline = Date.now() + timeoutMs;
+  let dots = 0;
+  while (Date.now() < deadline) {
+    const res = await fetch(`${getApiUrl()}/api/runs/${runId}`, { headers: internalHeaders() });
+    if (!res.ok) throw new Error(`Failed to poll run ${runId}: ${res.status}`);
+    const run = await res.json();
+    if (run.status !== "running" && run.status !== "queued") {
+      log(`${agentName} finished — status: ${run.status}`);
+      return run;
+    }
+    dots++;
+    if (dots % 3 === 0) log(`${agentName} still running... (${Math.round((Date.now() - (deadline - timeoutMs)) / 1000)}s)`);
+    await new Promise((r) => setTimeout(r, intervalMs));
+  }
+  throw new Error(`Run ${runId} timed out after ${timeoutMs / 1000}s`);
+}
+
+async function invokeAndWait(agentId, agentName, task) {
+  log(`Invoking ${agentName} (${agentId})...`);
+  const run = await invokeAgent(agentId, task);
+  log(`${agentName} run started — runId: ${run.id}`);
+  return pollRun(run.id, agentName);
+}
+
+server.setRequestHandler(ListToolsRequestSchema, async () => ({
+  tools: [
+    {
+      name: "run_team",
+      description:
+        "Invoke all direct reports in parallel and collect their findings. Always call this first before making any decision or synthesis — it is the only way to hear from your team. Each reporter runs their own configured task. Returns each reporter's name, role, status, and full output.",
+      inputSchema: {
+        type: "object",
+        properties: {},
+        required: [],
+      },
+    },
+    {
+      name: "ask_reporter",
+      description:
+        "Invoke one specific direct report by name and wait for their result. Use when you need a second opinion, want to re-run a single analyst, or need to resolve a conflict between reporters.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          name: {
+            type: "string",
+            description: "The name of the reporter to invoke (must match the agent name exactly).",
+          },
+          task: {
+            type: "string",
+            description: "Optional task or context to pass to the reporter. Overrides their default prompt.",
+          },
+        },
+        required: ["name"],
+      },
+    },
+  ],
+}));
+
+server.setRequestHandler(CallToolRequestSchema, async (request) => {
+  const { name, arguments: args } = request.params;
+  const team = getTeam();
+
+  if (name === "run_team") {
+    if (team.length === 0) {
+      return { content: [{ type: "text", text: "No direct reports found. Make sure this agent has reporters assigned via reportsTo." }] };
+    }
+
+    log(`Running team of ${team.length}: ${team.map((m) => m.name).join(", ")}`);
+
+    const results = await Promise.allSettled(
+      team.map(async (member) => {
+        const run = await invokeAndWait(member.id, member.name);
+        return { name: member.name, role: member.role, status: run.status, result: run.logs ?? "" };
+      })
+    );
+
+    const output = results.map((r, i) => {
+      if (r.status === "fulfilled") {
+        const { name, role, status, result } = r.value;
+        return `## ${name} (${role})\nStatus: ${status}\n\n${result}`;
+      } else {
+        return `## ${team[i].name} (${team[i].role})\nStatus: error\n\n${r.reason?.message ?? "Unknown error"}`;
+      }
+    });
+
+    return { content: [{ type: "text", text: output.join("\n\n---\n\n") }] };
+  }
+
+  if (name === "ask_reporter") {
+    const reporterName = args?.name;
+    const member = team.find((m) => m.name === reporterName);
+    if (!member) {
+      const available = team.map((m) => m.name).join(", ");
+      return { content: [{ type: "text", text: `Reporter "${reporterName}" not found. Available reporters: ${available || "none"}` }] };
+    }
+
+    const run = await invokeAndWait(member.id, member.name, args?.task);
+    const output = `## ${member.name} (${member.role})\nStatus: ${run.status}\n\n${run.logs ?? ""}`;
+    return { content: [{ type: "text", text: output }] };
+  }
+
+  return { content: [{ type: "text", text: `Unknown tool: ${name}` }] };
+});
+
+const transport = new StdioServerTransport();
+await server.connect(transport);

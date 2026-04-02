@@ -1,0 +1,87 @@
+[
+  {
+    "id": "news-analyst",
+    "label": "News Analyst",
+    "description": "Fetches cryptocurrency news from multiple RSS feeds including CoinDesk, CoinTelegraph, Decrypt, The Block, and more.",
+    "command": "node",
+    "args": ["packages/mcp-news-analyst/index.js"],
+    "tools": [
+      {
+        "name": "get_crypto_news",
+        "fullName": "mcp__news-analyst__get_crypto_news",
+        "description": "Fetch recent news articles for a cryptocurrency from multiple RSS sources. Returns titles, URLs, sources, and publication dates."
+      }
+    ]
+  },
+  {
+    "id": "chart-analyst",
+    "label": "Chart Analyst",
+    "description": "Fetches trading chart images and returns them for Claude to perform technical analysis.",
+    "command": "node",
+    "args": ["packages/mcp-chart-analyst/index.js"],
+    "tools": [
+      {
+        "name": "analyze_chart",
+        "fullName": "mcp__chart-analyst__analyze_chart",
+        "description": "Fetch a trading chart image by URL and return it for technical analysis. Claude identifies trend direction, support/resistance levels, chart patterns, and indicator readings."
+      }
+    ]
+  },
+  {
+    "id": "contractor",
+    "label": "Contractor",
+    "description": "Allows agents to consult hired contractor models (e.g. Grok, GPT-4o via OpenRouter). Checks for an active contract agreement before calling the external model.",
+    "command": "node",
+    "args": ["packages/mcp-contractor/index.js"],
+    "tools": [
+      {
+        "name": "ask_contractor",
+        "fullName": "mcp__contractor__ask_contractor",
+        "description": "Send a prompt to a hired contractor model and get their response. Validates the contract is active before calling."
+      },
+      {
+        "name": "list_contractors",
+        "fullName": "mcp__contractor__list_contractors",
+        "description": "List all registered contractors and their contract status."
+      }
+    ]
+  },
+  {
+    "id": "orchestrator",
+    "label": "Orchestrator",
+    "description": "Team orchestration tools for lead agents. Provides run_team and ask_reporter to invoke direct reports and collect their results without any hardcoded HTTP or polling logic in SKILL.md.",
+    "command": "node",
+    "args": ["packages/mcp-orchestrator/index.js"],
+    "tools": [
+      {
+        "name": "run_team",
+        "fullName": "mcp__orchestrator__run_team",
+        "description": "Invoke all direct reports in parallel and wait for their results."
+      },
+      {
+        "name": "ask_reporter",
+        "fullName": "mcp__orchestrator__ask_reporter",
+        "description": "Invoke a single direct report by name and wait for their result."
+      }
+    ]
+  },
+  {
+    "id": "wallet",
+    "label": "Wallet",
+    "description": "Gives agents access to their Solana wallet and enables automatic x402 payments. Use wallet_fetch instead of regular HTTP when calling APIs that may charge per request.",
+    "command": "node",
+    "args": ["packages/mcp-wallet/index.js"],
+    "tools": [
+      {
+        "name": "wallet_address",
+        "fullName": "mcp__wallet__wallet_address",
+        "description": "Get this agent's Solana wallet address."
+      },
+      {
+        "name": "wallet_fetch",
+        "fullName": "mcp__wallet__wallet_fetch",
+        "description": "Make an HTTP request with automatic x402 payment. If the API returns 402 Payment Required, payment is made automatically from the agent's wallet and the request is retried."
+      }
+    ]
+  }
+]

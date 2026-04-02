@@ -1,0 +1,41 @@
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "name": "muxAI",
+  "description": "AI Multiplexer. Orchestrate multi-agent teams for trade analysis.",
+  "theme": "mint",
+  "colors": {
+    "primary": "#C15F3C",
+    "light": "#D4785A",
+    "dark": "#A34E30"
+  },
+  "favicon": "/favicon.svg",
+  "logo": {
+    "dark": "/images/logo-dark.svg",
+    "light": "/images/logo-light.svg"
+  },
+  "topbarLinks": [
+    {
+      "name": "GitHub",
+      "url": "https://github.com/muxai-io/muxai"
+    }
+  ],
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Get Started",
+        "groups": [
+          {
+            "group": "Introduction",
+            "pages": [
+              "introduction",
+              "quickstart"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "footerSocials": {
+    "github": "https://github.com/muxai-io/muxai"
+  }
+}
