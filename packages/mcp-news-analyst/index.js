@@ -4,7 +4,7 @@ import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 
-const FEEDS = [
+const DEFAULT_FEEDS = [
   { name: "CoinDesk", url: "https://www.coindesk.com/arc/outboundfeeds/rss/" },
   { name: "CoinTelegraph", url: "https://cointelegraph.com/rss" },
   { name: "Decrypt", url: "https://decrypt.co/feed" },
@@ -15,7 +15,7 @@ const FEEDS = [
   { name: "Cryptopolitan", url: "https://www.cryptopolitan.com/feed/" },
 ];
 
-const CURRENCY_TERMS = {
+const DEFAULT_CURRENCY_TERMS = {
   BTC: ["bitcoin", "btc"],
   ETH: ["ethereum", "eth", "ether"],
   SOL: ["solana", "sol"],
@@ -33,6 +33,42 @@ const CURRENCY_TERMS = {
   SHIB: ["shiba", "shib"],
   PEPE: ["pepe"],
 };
+
+function getApiUrl() {
+  return process.env.MUXAI_API_URL || "http://localhost:3001";
+}
+
+function internalHeaders() {
+  const secret = process.env.MUXAI_INTERNAL_SECRET;
+  return secret ? { "x-muxai-internal": secret } : {};
+}
+
+// Resolved at startup from API settings, falls back to defaults
+let FEEDS = DEFAULT_FEEDS;
+let CURRENCY_TERMS = DEFAULT_CURRENCY_TERMS;
+
+async function loadSettingsFromApi() {
+  try {
+    const res = await fetch(`${getApiUrl()}/api/settings`, {
+      headers: internalHeaders(),
+      signal: AbortSignal.timeout(5000),
+    });
+    if (!res.ok) return;
+    const settings = await res.json();
+    if (settings.mcp_news_feeds) {
+      const parsed = JSON.parse(settings.mcp_news_feeds);
+      if (Array.isArray(parsed) && parsed.length > 0) FEEDS = parsed;
+    }
+    if (settings.mcp_currency_terms) {
+      const parsed = JSON.parse(settings.mcp_currency_terms);
+      if (parsed && typeof parsed === "object" && Object.keys(parsed).length > 0) CURRENCY_TERMS = parsed;
+    }
+  } catch {
+    // Silently fall back to defaults
+  }
+}
+
+await loadSettingsFromApi();
 
 const parser = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: "@_" });
 

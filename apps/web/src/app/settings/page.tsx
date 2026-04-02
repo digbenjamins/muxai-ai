@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useTheme } from "next-themes";
-import { Monitor, Moon, Sun, Palette, Users2, Plus, Trash2, Wallet, Bell, ChevronDown, ChevronRight, Hash } from "lucide-react";
+import { Monitor, Moon, Sun, Palette, Users2, Plus, Trash2, Wallet, Bell, ChevronDown, ChevronRight, Hash, Rss, Server } from "lucide-react";
 import Image from "next/image";
 import { apiFetch, cn } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -25,6 +25,7 @@ interface AgentRole {
 const SECTIONS = [
   { id: "display", label: "Display", icon: Palette },
   { id: "agents", label: "Agents", icon: Users2 },
+  { id: "mcp", label: "MCP", icon: Server },
   { id: "notifications", label: "Notifications", icon: Bell },
   { id: "x402", label: "x402", icon: Wallet },
 ] as const;
@@ -214,6 +215,255 @@ function AgentsSection() {
           )}
         </CardContent>
       </Card>
+    </div>
+  );
+}
+
+// ─── MCP Section ─────────────────────────────────────────────────────────────
+
+interface NewsFeed { name: string; url: string; }
+interface CurrencyTerms { [symbol: string]: string[]; }
+
+const DEFAULT_FEEDS: NewsFeed[] = [
+  { name: "CoinDesk", url: "https://www.coindesk.com/arc/outboundfeeds/rss/" },
+  { name: "CoinTelegraph", url: "https://cointelegraph.com/rss" },
+  { name: "Decrypt", url: "https://decrypt.co/feed" },
+  { name: "The Block", url: "https://www.theblock.co/rss.xml" },
+  { name: "Blockworks", url: "https://blockworks.co/feed" },
+  { name: "Bitcoin Sistemi", url: "https://en.bitcoinsistemi.com/feed/" },
+  { name: "AMBCrypto", url: "https://ambcrypto.com/feed/" },
+  { name: "Cryptopolitan", url: "https://www.cryptopolitan.com/feed/" },
+];
+
+const DEFAULT_CURRENCY_TERMS: CurrencyTerms = {
+  BTC: ["bitcoin", "btc"],
+  ETH: ["ethereum", "eth", "ether"],
+  SOL: ["solana", "sol"],
+  BNB: ["binance", "bnb"],
+  XRP: ["ripple", "xrp"],
+  ADA: ["cardano", "ada"],
+  DOGE: ["dogecoin", "doge"],
+  AVAX: ["avalanche", "avax"],
+  DOT: ["polkadot", "dot"],
+  MATIC: ["polygon", "matic"],
+  LINK: ["chainlink", "link"],
+  UNI: ["uniswap", "uni"],
+  ATOM: ["cosmos", "atom"],
+  LTC: ["litecoin", "ltc"],
+  SHIB: ["shiba", "shib"],
+  PEPE: ["pepe"],
+};
+
+function McpSection() {
+  const [feeds, setFeeds] = useState<NewsFeed[]>([]);
+  const [currencyTerms, setCurrencyTerms] = useState<CurrencyTerms>({});
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  // Feed add form
+  const [showAddFeed, setShowAddFeed] = useState(false);
+  const [feedName, setFeedName] = useState("");
+  const [feedUrl, setFeedUrl] = useState("");
+
+  // Currency add form
+  const [showAddCurrency, setShowAddCurrency] = useState(false);
+  const [newSymbol, setNewSymbol] = useState("");
+  const [newTerms, setNewTerms] = useState("");
+
+  useEffect(() => {
+    apiFetch<Record<string, string>>("/api/settings")
+      .then((s) => {
+        setFeeds(s.mcp_news_feeds ? JSON.parse(s.mcp_news_feeds) : DEFAULT_FEEDS);
+        setCurrencyTerms(s.mcp_currency_terms ? JSON.parse(s.mcp_currency_terms) : DEFAULT_CURRENCY_TERMS);
+      })
+      .finally(() => setLoading(false));
+  }, []);
+
+  async function handleSave() {
+    setSaving(true);
+    setSaved(false);
+    try {
+      await apiFetch("/api/settings", {
+        method: "PATCH",
+        body: JSON.stringify({
+          mcp_news_feeds: JSON.stringify(feeds),
+          mcp_currency_terms: JSON.stringify(currencyTerms),
+        }),
+      });
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function removeFeed(idx: number) {
+    setFeeds((f) => f.filter((_, i) => i !== idx));
+  }
+
+  function addFeed(e: React.FormEvent) {
+    e.preventDefault();
+    if (!feedName.trim() || !feedUrl.trim()) return;
+    setFeeds((f) => [...f, { name: feedName.trim(), url: feedUrl.trim() }]);
+    setFeedName("");
+    setFeedUrl("");
+    setShowAddFeed(false);
+  }
+
+  function removeCurrency(symbol: string) {
+    setCurrencyTerms((c) => {
+      const next = { ...c };
+      delete next[symbol];
+      return next;
+    });
+  }
+
+  function addCurrency(e: React.FormEvent) {
+    e.preventDefault();
+    const symbol = newSymbol.trim().toUpperCase();
+    const terms = newTerms.split(",").map((t) => t.trim().toLowerCase()).filter(Boolean);
+    if (!symbol || terms.length === 0) return;
+    setCurrencyTerms((c) => ({ ...c, [symbol]: terms }));
+    setNewSymbol("");
+    setNewTerms("");
+    setShowAddCurrency(false);
+  }
+
+  if (loading) return <p className="text-sm text-muted-foreground">Loading...</p>;
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-base font-semibold">MCP</h2>
+        <p className="text-sm text-muted-foreground mt-0.5">Configure data sources used by built-in MCP servers.</p>
+      </div>
+
+      {/* News Feeds */}
+      <Card>
+        <CardHeader className="pb-3">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <CardTitle className="text-sm">News Feeds</CardTitle>
+              <CardDescription className="mt-1">
+                RSS feeds used by the News Analyst MCP server. Changes take effect on the next agent run.
+              </CardDescription>
+            </div>
+            {!showAddFeed && (
+              <Button size="sm" variant="outline" className="gap-1.5 shrink-0" onClick={() => setShowAddFeed(true)}>
+                <Plus className="h-3.5 w-3.5" />
+                Add Feed
+              </Button>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {showAddFeed && (
+            <form onSubmit={addFeed} className="rounded-lg border border-border p-4 space-y-4 bg-muted/20">
+              <p className="text-sm font-medium">New Feed</p>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label htmlFor="feed-name">Name *</Label>
+                  <Input id="feed-name" required placeholder="e.g. CoinDesk" value={feedName} onChange={(e) => setFeedName(e.target.value)} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="feed-url">RSS URL *</Label>
+                  <Input id="feed-url" required type="url" placeholder="https://example.com/rss" value={feedUrl} onChange={(e) => setFeedUrl(e.target.value)} />
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <Button type="submit" size="sm">Add Feed</Button>
+                <Button type="button" size="sm" variant="outline" onClick={() => setShowAddFeed(false)}>Cancel</Button>
+              </div>
+            </form>
+          )}
+
+          {feeds.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No feeds configured.</p>
+          ) : (
+            <ul className="divide-y divide-border rounded-lg border border-border overflow-hidden">
+              {feeds.map((feed, i) => (
+                <li key={i} className="flex items-center justify-between gap-4 px-4 py-3 bg-background">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <Rss className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium leading-none">{feed.name}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5 truncate max-w-md">{feed.url}</p>
+                    </div>
+                  </div>
+                  <Button size="icon" variant="ghost" className="h-7 w-7 shrink-0 text-muted-foreground hover:text-destructive" onClick={() => removeFeed(i)}>
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Currency Terms */}
+      <Card>
+        <CardHeader className="pb-3">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <CardTitle className="text-sm">Currency Terms</CardTitle>
+              <CardDescription className="mt-1">
+                Search terms used to match news articles to currencies. The News Analyst filters articles by these keywords.
+              </CardDescription>
+            </div>
+            {!showAddCurrency && (
+              <Button size="sm" variant="outline" className="gap-1.5 shrink-0" onClick={() => setShowAddCurrency(true)}>
+                <Plus className="h-3.5 w-3.5" />
+                Add Currency
+              </Button>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {showAddCurrency && (
+            <form onSubmit={addCurrency} className="rounded-lg border border-border p-4 space-y-4 bg-muted/20">
+              <p className="text-sm font-medium">New Currency</p>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label htmlFor="currency-symbol">Symbol *</Label>
+                  <Input id="currency-symbol" required placeholder="e.g. BTC" value={newSymbol} onChange={(e) => setNewSymbol(e.target.value)} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="currency-terms">Search Terms *</Label>
+                  <Input id="currency-terms" required placeholder="bitcoin, btc" value={newTerms} onChange={(e) => setNewTerms(e.target.value)} />
+                  <p className="text-xs text-muted-foreground">Comma-separated, lowercase</p>
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <Button type="submit" size="sm">Add Currency</Button>
+                <Button type="button" size="sm" variant="outline" onClick={() => setShowAddCurrency(false)}>Cancel</Button>
+              </div>
+            </form>
+          )}
+
+          {Object.keys(currencyTerms).length === 0 ? (
+            <p className="text-sm text-muted-foreground">No currencies configured.</p>
+          ) : (
+            <ul className="divide-y divide-border rounded-lg border border-border overflow-hidden">
+              {Object.entries(currencyTerms).map(([symbol, terms]) => (
+                <li key={symbol} className="flex items-center justify-between gap-4 px-4 py-3 bg-background">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <Badge variant="secondary" className="font-mono shrink-0">{symbol}</Badge>
+                    <span className="text-sm text-muted-foreground truncate">{terms.join(", ")}</span>
+                  </div>
+                  <Button size="icon" variant="ghost" className="h-7 w-7 shrink-0 text-muted-foreground hover:text-destructive" onClick={() => removeCurrency(symbol)}>
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </CardContent>
+      </Card>
+
+      <Button size="sm" disabled={saving} onClick={handleSave}>
+        {saved ? "Saved!" : saving ? "Saving..." : "Save"}
+      </Button>
     </div>
   );
 }
@@ -628,6 +878,7 @@ export default function SettingsPage() {
       <div className="flex-1 max-w-2xl">
         {active === "display" && <DisplaySection />}
         {active === "agents" && <AgentsSection />}
+        {active === "mcp" && <McpSection />}
         {active === "notifications" && <NotificationsSection />}
         {active === "x402" && <X402Section />}
       </div>
