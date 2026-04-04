@@ -210,6 +210,23 @@ MCP tools can return different content types:
 ] }
 ```
 
+## Settings toggle (optional)
+
+If you want users to be able to enable or disable your server from the **Settings** page, add an entry to the `BUILTIN_SERVERS` array in `apps/web/src/app/settings/page.tsx`:
+
+```ts
+const BUILTIN_SERVERS = [
+  // ... existing servers
+  { id: "my-server", label: "My Server", description: "Short description shown in settings" },
+];
+```
+
+The platform already reads the `mcp_disabled_servers` setting at runtime and filters out any disabled server IDs when building the MCP config. No backend changes needed — just the UI entry.
+
+<Note>
+  Servers listed in `CORE_SERVERS` (like `wallet` and `orchestrator`) cannot be toggled off. Only add your server there if it is essential for platform operation.
+</Note>
+
 ## Tips
 
 - **Logging**: Use `process.stderr.write()` for debug output. MCP uses stdout for protocol messages, so `console.log` will break things.

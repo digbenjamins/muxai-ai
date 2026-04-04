@@ -66,7 +66,7 @@ export default function ChatPage() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [streamLines, setStreamLines] = useState<StreamLine[]>([]);
   const [prompt, setPrompt] = useState("");
-  const [useMcp, setUseMcp] = useState(false);
+  const [useMcp, setUseMcp] = useState(true);
   const [running, setRunning] = useState(false);
   const [runId, setRunId] = useState<string | null>(null);
   const esRef = useRef<EventSource | null>(null);
@@ -207,11 +207,12 @@ export default function ChatPage() {
           {selectedId === "general" && (
             <button
               onClick={() => setUseMcp((v) => !v)}
-              title="Toggle built-in MCP"
-              className={`flex items-center gap-1.5 text-xs px-2 py-1 rounded border transition-colors ${useMcp ? "border-border bg-accent text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"}`}
+              title={useMcp ? "Built-in MCP enabled" : "Built-in MCP disabled"}
+              className={`flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-md border transition-colors ${useMcp ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-400" : "border-border bg-muted/50 text-muted-foreground"}`}
             >
               <Cpu className="h-3.5 w-3.5" />
-              MCP
+              Built-in MCP
+              <span className={`inline-block h-2 w-2 rounded-full ${useMcp ? "bg-emerald-400" : "bg-muted-foreground/40"}`} />
             </button>
           )}
           <Select value={selectedId} onValueChange={setSelectedId}>
