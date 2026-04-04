@@ -1,0 +1,138 @@
+---
+title: "Add a Custom MCP Server"
+description: "Step-by-step guide to adding a custom MCP server through the muxAI portal UI."
+---
+
+## Overview
+
+Custom MCP servers let you extend your agents with any tool — proprietary APIs, internal services, web scrapers, on-chain data, or anything with an MCP-compatible interface.
+
+This guide walks through adding a custom server via the **MCP Servers** page in the portal. No code changes to the platform required.
+
+<Info>
+  Looking to build an MCP server that ships with the platform itself? See [Build a Built-in MCP Server](/guides/build-mcp-server).
+</Info>
+
+## Prerequisites
+
+- A running muxAI instance
+- An MCP server to connect (either a local stdio process or a remote HTTP endpoint)
+
+## Open the MCP Servers page
+
+Navigate to **MCP Servers** in the sidebar under **Platform**. The page shows two sections:
+
+- **Built-in** — servers that ship with muxAI (read-only)
+- **Custom** — servers you've added (editable)
+
+## Add a server
+
+Click **Add Server** to open the form. You can add servers in two ways:
+
+### Option 1: Paste JSON
+
+<Steps>
+  <Step title="Switch to Paste JSON mode">
+    Select the **Paste JSON** tab (default).
+  </Step>
+  <Step title="Paste your MCP config">
+    Paste a standard MCP configuration block:
+
+    ```json
+    {
+      "mcpServers": {
+        "my-server": {
+          "command": "node",
+          "args": ["path/to/server.js"]
+        }
+      }
+    }
+    ```
+
+    You can include multiple servers in a single paste — they'll all be imported.
+  </Step>
+  <Step title="Review the preview">
+    muxAI parses the JSON and shows a preview of each server it found: name, transport type, command or URL, and arguments.
+  </Step>
+  <Step title="Import">
+    Click **Import** to save all servers to the database.
+  </Step>
+</Steps>
+
+### Option 2: Manual entry
+
+<Steps>
+  <Step title="Switch to Manual mode">
+    Select the **Manual** tab.
+  </Step>
+  <Step title="Fill in the fields">
+    | Field | Required | Description |
+    |-------|----------|-------------|
+    | **Name** | Yes | Unique identifier (e.g. `my-price-feed`) |
+    | **Command / URL** | Yes | For stdio: the binary to run (e.g. `node`, `python`). For HTTP: the server URL. |
+    | **Arguments** | stdio only | Arguments passed to the command (e.g. `["path/to/server.js"]`) |
+    | **Headers** | HTTP only | Authentication or custom headers as JSON (e.g. `{"Authorization": "Bearer ..."}`) |
+    | **Description** | No | Shown in the UI to help you identify the server |
+  </Step>
+  <Step title="Save">
+    Click **Save** to add the server.
+  </Step>
+</Steps>
+
+## Transport types
+
+<Columns cols={2}>
+  <Card title="stdio" icon="terminal">
+    Runs as a local process on the same machine as muxAI. The agent communicates over stdin/stdout.
+
+    Best for: local scripts, CLI wrappers, anything that runs alongside the platform.
+
+    ```json
+    {
+      "command": "python",
+      "args": ["my_server.py", "--port", "0"]
+    }
+    ```
+  </Card>
+  <Card title="HTTP" icon="globe">
+    Connects to a remote server via URL. Supports optional authentication headers.
+
+    Best for: cloud-hosted servers, shared team servers, third-party MCP services.
+
+    ```json
+    {
+      "type": "http",
+      "url": "https://mcp.example.com/sse",
+      "headers": {
+        "Authorization": "Bearer sk-..."
+      }
+    }
+    ```
+  </Card>
+</Columns>
+
+## Verify the server
+
+After adding, the server appears in the **Custom** section of the MCP Servers page.
+
+To confirm agents can access it:
+
+1. Make sure the agent is set to **Built-in** MCP mode (the default). Custom servers are merged into the built-in config at runtime.
+2. Run the agent — it will have access to all tools exposed by your server.
+3. Check the agent's run logs to verify tool calls are reaching your server.
+
+## Managing custom servers
+
+- **Edit**: Click a custom server to update its configuration.
+- **Delete**: Remove a server from the database. Agents will no longer have access to it on their next run.
+
+## Tips
+
+- **Naming**: Server names must be unique. The agent sees tools as `mcp__<server-name>__<tool-name>`.
+- **stdio debugging**: If a stdio server isn't working, test it directly in your terminal first (`node path/to/server.js`) to check for startup errors.
+- **HTTP auth**: For servers behind authentication, add the required headers in the Headers field. These are sent with every request.
+- **MCP mode matters**: Custom servers only apply in **Built-in** mode. In **Global** mode, agents use your Claude CLI config instead.
+
+<Info>
+  Want to package a server as a permanent part of your muxAI installation? See [Build a Built-in MCP Server](/guides/build-mcp-server) for creating servers in the `packages/` directory.
+</Info>

@@ -54,7 +54,13 @@
         "tab": "Guides",
         "groups": [
           {
-            "group": "Guides",
+            "group": "Portal",
+            "pages": [
+              "guides/add-custom-mcp-server"
+            ]
+          },
+          {
+            "group": "Architecture",
             "pages": [
               "guides/build-mcp-server"
             ]
