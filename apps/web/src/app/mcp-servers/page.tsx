@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Check, Copy, Trash2, Plus, Plug, ChevronDown, ChevronRight } from "lucide-react";
+import { Check, Copy, Trash2, Plus, Plug, ChevronDown, ChevronRight, Zap, Loader2 } from "lucide-react";
 
 interface McpTool { name: string; fullName: string; description: string; }
 interface BuiltinServer { id: string; label: string; description: string; command: string; args: string[]; tools: McpTool[]; }
@@ -96,6 +96,8 @@ export default function McpServersPage() {
   const [parseError, setParseError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [testing, setTesting] = useState<string | null>(null);
+  const [testResults, setTestResults] = useState<Record<string, { ok: boolean; serverName?: string; tools?: { name: string; description?: string }[]; error?: string }>>({});
 
   function load() {
     apiFetch<McpRegistryResponse>("/api/mcp-servers")
@@ -166,6 +168,17 @@ export default function McpServersPage() {
     } catch (err) {
       setFormError(err instanceof Error ? err.message : "Failed to add server");
     } finally { setSaving(false); }
+  }
+
+  async function handleTest(id: string) {
+    setTesting(id);
+    setTestResults((prev) => { const next = { ...prev }; delete next[id]; return next; });
+    try {
+      const result = await apiFetch<{ ok: boolean; serverName?: string; tools?: { name: string; description?: string }[]; error?: string }>(`/api/mcp-servers/${id}/test`, { method: "POST" });
+      setTestResults((prev) => ({ ...prev, [id]: result }));
+    } catch (err) {
+      setTestResults((prev) => ({ ...prev, [id]: { ok: false, error: err instanceof Error ? err.message : "Test failed" } }));
+    } finally { setTesting(null); }
   }
 
   async function handleDelete(id: string) {
@@ -369,32 +382,67 @@ export default function McpServersPage() {
             <p className="text-sm text-muted-foreground">No custom servers yet.</p>
           ) : (
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {customServers.map((server) => (
-                <Card key={server.id}>
-                  <CardHeader className="p-4">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0">
-                        <CardTitle className="text-sm">{server.label}</CardTitle>
-                        {server.description && <CardDescription className="text-xs mt-0.5">{server.description}</CardDescription>}
+              {customServers.map((server) => {
+                const result = testResults[server.id];
+                return (
+                  <Card key={server.id}>
+                    <CardHeader className="p-4">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <CardTitle className="text-sm">{server.label}</CardTitle>
+                          {server.description && <CardDescription className="text-xs mt-0.5">{server.description}</CardDescription>}
+                        </div>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <Badge variant="outline" className="text-xs">custom</Badge>
+                          <Button size="icon" variant="ghost" className="h-6 w-6 text-muted-foreground hover:text-emerald-400" onClick={() => handleTest(server.id)} disabled={testing === server.id} title="Test connection">
+                            {testing === server.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Zap className="h-3 w-3" />}
+                          </Button>
+                          <Button size="icon" variant="ghost" className="h-6 w-6 text-muted-foreground hover:text-destructive" onClick={() => handleDelete(server.id)}>
+                            <Trash2 className="h-3 w-3" />
+                          </Button>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-1.5 shrink-0">
-                        <Badge variant="outline" className="text-xs">custom</Badge>
-                        <Button size="icon" variant="ghost" className="h-6 w-6 text-muted-foreground hover:text-destructive" onClick={() => handleDelete(server.id)}>
-                          <Trash2 className="h-3 w-3" />
-                        </Button>
-                      </div>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="px-4 pb-4 pt-0">
-                    <pre className="p-2.5 text-xs overflow-x-auto rounded-md bg-muted">{JSON.stringify(
-                      server.command.startsWith("http")
-                        ? { type: "http", url: server.command, ...(server.headers ? { headers: server.headers } : {}) }
-                        : { command: server.command, args: server.args },
-                      null, 2
-                    )}</pre>
-                  </CardContent>
-                </Card>
-              ))}
+                    </CardHeader>
+                    <CardContent className="px-4 pb-4 pt-0 space-y-3">
+                      <pre className="p-2.5 text-xs overflow-x-auto rounded-md bg-muted">{JSON.stringify(
+                        server.command.startsWith("http")
+                          ? { type: "http", url: server.command, ...(server.headers ? { headers: server.headers } : {}) }
+                          : { command: server.command, args: server.args },
+                        null, 2
+                      )}</pre>
+                      {result && (
+                        <div className={cn("rounded-md border p-3 text-xs space-y-2", result.ok ? "border-emerald-500/30 bg-emerald-500/5" : "border-destructive/30 bg-destructive/5")}>
+                          {result.ok ? (
+                            <>
+                              <div className="flex items-center gap-1.5 text-emerald-400 font-medium">
+                                <Check className="h-3 w-3" />
+                                Connected{result.serverName ? ` — ${result.serverName}` : ""}
+                              </div>
+                              {result.tools && result.tools.length > 0 ? (
+                                <div className="space-y-1">
+                                  <p className="text-muted-foreground">{result.tools.length} tool{result.tools.length !== 1 ? "s" : ""} available:</p>
+                                  {result.tools.map((t) => (
+                                    <div key={t.name} className="flex items-baseline gap-2">
+                                      <code className="bg-muted px-1 py-0.5 rounded shrink-0">{t.name}</code>
+                                      {t.description && <span className="text-muted-foreground truncate">{t.description}</span>}
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : (
+                                <p className="text-muted-foreground">Server responded successfully. Tool discovery not available.</p>
+                              )}
+                            </>
+                          ) : (
+                            <div className="text-destructive">
+                              <span className="font-medium">Connection failed: </span>{result.error}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                );
+              })}
             </div>
           )}
         </div>
