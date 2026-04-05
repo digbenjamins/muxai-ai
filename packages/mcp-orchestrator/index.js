@@ -67,10 +67,18 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
     {
       name: "run_team",
       description:
-        "Invoke all direct reports in parallel and collect their findings. Always call this first before making any decision or synthesis — it is the only way to hear from your team. Each reporter runs their own configured task. Returns each reporter's name, role, status, and full output.",
+        "Invoke all direct reports in parallel and collect their findings. " +
+        "Pass a task to give all reporters shared context. Each reporter picks out what is relevant to their role. " +
+        "If no task is provided, each reporter runs their own default prompt. " +
+        "Returns each reporter's name, role, status, and full output.",
       inputSchema: {
         type: "object",
-        properties: {},
+        properties: {
+          task: {
+            type: "string",
+            description: "Optional task or context sent to all reporters. Each reporter will use the parts relevant to their role and ignore the rest.",
+          },
+        },
         required: [],
       },
     },
@@ -105,11 +113,12 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       return { content: [{ type: "text", text: "No direct reports found. Make sure this agent has reporters assigned via reportsTo." }] };
     }
 
-    log(`Running team of ${team.length}: ${team.map((m) => m.name).join(", ")}`);
+    const task = args?.task;
+    log(`Running team of ${team.length}: ${team.map((m) => m.name).join(", ")}${task ? ` — task: "${task}"` : ""}`);
 
     const results = await Promise.allSettled(
       team.map(async (member) => {
-        const run = await invokeAndWait(member.id, member.name);
+        const run = await invokeAndWait(member.id, member.name, task);
         return { name: member.name, role: member.role, status: run.status, result: run.logs ?? "" };
       })
     );
@@ -128,7 +137,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
   if (name === "ask_reporter") {
     const reporterName = args?.name;
-    const member = team.find((m) => m.name === reporterName);
+    const normalize = (s) => s.toLowerCase().replace(/[\s_-]+/g, "");
+    const member = team.find((m) => m.name === reporterName)
+      || team.find((m) => normalize(m.name) === normalize(reporterName ?? ""));
     if (!member) {
       const available = team.map((m) => m.name).join(", ");
       return { content: [{ type: "text", text: `Reporter "${reporterName}" not found. Available reporters: ${available || "none"}` }] };
