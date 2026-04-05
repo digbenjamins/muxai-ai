@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { apiFetch, cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -7,8 +7,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Progress } from "@/components/ui/progress";
 import { TEAM_BLUEPRINTS, getTemplate, type TeamBlueprint } from "@/lib/team-blueprints";
-import { Rocket, Crown, Loader2, User } from "lucide-react";
+import { Rocket, Crown, Loader2, User, Check, Shield, Cpu, Zap, Radio } from "lucide-react";
 
 interface MemberConfig {
   templateId: string;
@@ -16,6 +17,115 @@ interface MemberConfig {
   name: string;
   defaultPrompt: string;
   skillMd: string;
+}
+
+interface DeployStep {
+  label: string;
+  sublabel: string;
+  icon: React.ReactNode;
+}
+
+function DeployOverlay({
+  steps,
+  currentStep,
+  progress,
+  done,
+}: {
+  steps: DeployStep[];
+  currentStep: number;
+  progress: number;
+  done: boolean;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
+      <div className="w-full max-w-md space-y-6 rounded-xl border bg-card p-8 shadow-2xl">
+        {/* Header */}
+        <div className="text-center space-y-1">
+          <div className="flex justify-center mb-3">
+            <div className={cn(
+              "flex h-12 w-12 items-center justify-center rounded-full",
+              done ? "bg-green-500/10" : "bg-primary/10"
+            )}>
+              {done ? (
+                <Check className="h-6 w-6 text-green-500" />
+              ) : (
+                <Rocket className="h-6 w-6 text-primary animate-pulse" />
+              )}
+            </div>
+          </div>
+          <h2 className="text-lg font-semibold">
+            {done ? "Team Deployed" : "Deploying Team"}
+          </h2>
+          <p className="text-sm text-muted-foreground">
+            {done ? "All agents are online" : "Initializing agents..."}
+          </p>
+        </div>
+
+        {/* Progress bar */}
+        <div className="space-y-2">
+          <Progress value={progress} className="h-2.5" />
+          <p className="text-xs text-muted-foreground text-right font-mono">
+            {Math.round(progress)}%
+          </p>
+        </div>
+
+        {/* Step list */}
+        <div className="space-y-1">
+          {steps.map((step, i) => {
+            const isActive = i === currentStep && !done;
+            const isComplete = i < currentStep || done;
+            return (
+              <div
+                key={i}
+                className={cn(
+                  "flex items-center gap-3 rounded-lg px-3 py-2.5 transition-all duration-300",
+                  isActive && "bg-primary/5 scale-[1.02]",
+                  isComplete && "opacity-70",
+                  !isActive && !isComplete && "opacity-30"
+                )}
+              >
+                {/* Status indicator */}
+                <div className={cn(
+                  "flex h-7 w-7 shrink-0 items-center justify-center rounded-full transition-all duration-300",
+                  isComplete && "bg-green-500/10",
+                  isActive && "bg-primary/10",
+                  !isActive && !isComplete && "bg-muted"
+                )}>
+                  {isComplete ? (
+                    <Check className="h-3.5 w-3.5 text-green-500" />
+                  ) : isActive ? (
+                    <Loader2 className="h-3.5 w-3.5 text-primary animate-spin" />
+                  ) : (
+                    <span className="h-3.5 w-3.5">{step.icon}</span>
+                  )}
+                </div>
+
+                {/* Label */}
+                <div className="min-w-0 flex-1">
+                  <p className={cn(
+                    "text-sm font-medium truncate",
+                    isActive && "text-foreground",
+                    isComplete && "text-muted-foreground",
+                    !isActive && !isComplete && "text-muted-foreground"
+                  )}>
+                    {step.label}
+                  </p>
+                  <p className="text-xs text-muted-foreground truncate">
+                    {isActive ? step.sublabel : isComplete ? "Ready" : "Pending"}
+                  </p>
+                </div>
+
+                {/* Elapsed dot for active */}
+                {isActive && (
+                  <span className="h-2 w-2 rounded-full bg-primary animate-pulse" />
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function buildAgentPayload(
@@ -44,6 +154,20 @@ function buildAgentPayload(
   };
 }
 
+const STEP_ICONS: Record<string, React.ReactNode> = {
+  "team-lead": <Crown className="h-3.5 w-3.5" />,
+  "news-analyst": <Radio className="h-3.5 w-3.5" />,
+  "technical-analyst": <Cpu className="h-3.5 w-3.5" />,
+  "data-analyst": <Zap className="h-3.5 w-3.5" />,
+};
+
+const STEP_SUBLABELS: Record<string, string> = {
+  "team-lead": "Configuring orchestration...",
+  "news-analyst": "Connecting news feeds...",
+  "technical-analyst": "Loading chart analysis...",
+  "data-analyst": "Initializing data pipeline...",
+};
+
 export default function DeployTeamPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
@@ -51,6 +175,14 @@ export default function DeployTeamPage() {
   const [mcpRootPath, setMcpRootPath] = useState("");
   const [selectedBlueprint, setSelectedBlueprint] = useState<TeamBlueprint | null>(null);
   const [members, setMembers] = useState<MemberConfig[]>([]);
+
+  // Deploy animation state
+  const [deploying, setDeploying] = useState(false);
+  const [deploySteps, setDeploySteps] = useState<DeployStep[]>([]);
+  const [deployCurrentStep, setDeployCurrentStep] = useState(0);
+  const [deployProgress, setDeployProgress] = useState(0);
+  const [deployDone, setDeployDone] = useState(false);
+  const redirectIdRef = useRef<string | null>(null);
 
   // Fetch MCP root path on mount
   useEffect(() => {
@@ -87,7 +219,7 @@ export default function DeployTeamPage() {
         templateId: m.templateId,
         blueprintRole: m.role,
         name: tpl?.form.name ?? m.templateId,
-        defaultPrompt: "",
+        defaultPrompt: tpl?.defaultPrompt ?? "",
         skillMd: skills[m.templateId] ?? "",
       };
     });
@@ -113,19 +245,80 @@ export default function DeployTeamPage() {
       return;
     }
 
+    // Build the animation steps: init → each agent → finalize
+    const steps: DeployStep[] = [
+      {
+        label: "Preparing environment",
+        sublabel: "Setting up workspace...",
+        icon: <Shield className="h-3.5 w-3.5" />,
+      },
+      ...members.map((m) => ({
+        label: m.name,
+        sublabel: STEP_SUBLABELS[m.templateId] ?? "Initializing agent...",
+        icon: STEP_ICONS[m.templateId] ?? <User className="h-3.5 w-3.5" />,
+      })),
+      {
+        label: "Generating wallets",
+        sublabel: "Creating Solana & EVM keypairs...",
+        icon: <Zap className="h-3.5 w-3.5" />,
+      },
+      {
+        label: "Wiring team hierarchy",
+        sublabel: "Linking reporters to lead...",
+        icon: <Rocket className="h-3.5 w-3.5" />,
+      },
+    ];
+
+    setDeploySteps(steps);
+    setDeployCurrentStep(0);
+    setDeployProgress(0);
+    setDeployDone(false);
+    setDeploying(true);
+
+    // Fire the actual API call immediately
+    const deployPromise = apiFetch<{ id: string }>("/api/teams/deploy", {
+      method: "POST",
+      body: JSON.stringify({
+        lead: buildAgentPayload(leadMember, mcpRootPath),
+        reporters: reporterMembers.map((m) => buildAgentPayload(m, mcpRootPath)),
+      }),
+    });
+
+    // Animate through the steps ~1s each
+    const stepDuration = 1000;
+    for (let i = 0; i < steps.length; i++) {
+      setDeployCurrentStep(i);
+      // Smooth progress fill within each step
+      const stepStart = (i / steps.length) * 100;
+      const stepEnd = ((i + 1) / steps.length) * 100;
+      setDeployProgress(stepStart);
+      // Animate to ~80% of step range quickly, then hold
+      await new Promise((r) => setTimeout(r, 150));
+      setDeployProgress(stepStart + (stepEnd - stepStart) * 0.8);
+      await new Promise((r) => setTimeout(r, stepDuration - 150));
+    }
+
+    // Wait for the real API response
     try {
-      const result = await apiFetch<{ id: string }>("/api/teams/deploy", {
-        method: "POST",
-        body: JSON.stringify({
-          lead: buildAgentPayload(leadMember, mcpRootPath),
-          reporters: reporterMembers.map((m) => buildAgentPayload(m, mcpRootPath)),
-        }),
-      });
-      router.push(`/agents/${result.id}`);
+      const result = await deployPromise;
+      redirectIdRef.current = result.id;
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to deploy team");
-    } finally {
+      setDeploying(false);
       setLoading(false);
+      setError(err instanceof Error ? err.message : "Failed to deploy team");
+      return;
+    }
+
+    // Show completion
+    setDeployProgress(100);
+    setDeployDone(true);
+    await new Promise((r) => setTimeout(r, 1200));
+
+    // Redirect
+    setDeploying(false);
+    setLoading(false);
+    if (redirectIdRef.current) {
+      router.push(`/agents/${redirectIdRef.current}`);
     }
   }
 
@@ -269,6 +462,16 @@ export default function DeployTeamPage() {
             {error && <p className="text-sm text-destructive">{error}</p>}
           </div>
         </div>
+      )}
+
+      {/* Deploy Animation Overlay */}
+      {deploying && (
+        <DeployOverlay
+          steps={deploySteps}
+          currentStep={deployCurrentStep}
+          progress={deployProgress}
+          done={deployDone}
+        />
       )}
     </div>
   );
