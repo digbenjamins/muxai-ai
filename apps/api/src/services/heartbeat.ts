@@ -20,19 +20,21 @@ export function stopRun(runId: string): boolean {
   return true;
 }
 
-async function buildBuiltinMcpConfig(): Promise<string> {
+async function buildBuiltinMcpConfig(excludeServers: string[] = []): Promise<string> {
   const registry = JSON.parse(readFileSync(REGISTRY_PATH, "utf-8")) as {
-    id: string; command: string; args: string[];
+    id: string;
+    command: string;
+    args: string[];
   }[];
   // Check for globally disabled built-in servers
   const disabledSetting = await prisma.setting.findUnique({ where: { key: "mcp_disabled_servers" } });
   const disabled: string[] = disabledSetting?.value ? JSON.parse(disabledSetting.value) : [];
   const mcpServers: Record<string, { command: string; args: string[] }> = {};
   for (const server of registry) {
-    if (disabled.includes(server.id)) continue;
+    if (disabled.includes(server.id) || excludeServers.includes(server.id)) continue;
     mcpServers[server.id] = {
       command: server.command,
-      args: server.args.map((a) => path.isAbsolute(a) ? a : path.join(MUXAI_ROOT, a)),
+      args: server.args.map((a) => (path.isAbsolute(a) ? a : path.join(MUXAI_ROOT, a))),
     };
   }
   // Merge custom DB servers
@@ -73,26 +75,29 @@ export async function buildInvokeInfo(agentId: string) {
   const isBuiltin = cwd === MUXAI_ROOT;
 
   const baseSkillPrompt = config.promptTemplate as string | undefined;
-  const skillPrompt = agent.reports.length > 0
-    ? buildSkillPromptWithTeam(baseSkillPrompt, agent.reports)
-    : baseSkillPrompt;
+  const skillPrompt = agent.reports.length > 0 ? buildSkillPromptWithTeam(baseSkillPrompt, agent.reports) : baseSkillPrompt;
 
   const defaultPrompt = (config.defaultPrompt as string) || buildDefaultPrompt(agent);
 
-  const mcpConfig = isBuiltin ? JSON.parse(await buildBuiltinMcpConfig()) : null;
+  const infoMcpExclude = agent.reports.length > 0 ? [] : ["orchestrator"];
+  const mcpConfig = isBuiltin ? JSON.parse(await buildBuiltinMcpConfig(infoMcpExclude)) : null;
 
   const args = [
-    "--model", model,
-    "--max-turns", String(maxTurns),
+    "--model",
+    model,
+    "--max-turns",
+    String(maxTurns),
     "--dangerously-skip-permissions",
     ...(effort ? ["--effort", effort] : []),
     ...(useChrome ? ["--chrome"] : []),
     ...(isBuiltin ? ["--mcp-config", "<mcp-config>", "--strict-mcp-config"] : []),
     ...(allowedTools ? ["--allowedTools", allowedTools] : []),
     ...(skillPrompt ? ["--system-prompt", "<system-prompt>"] : []),
-    "--output-format", "stream-json",
+    "--output-format",
+    "stream-json",
     "--verbose",
-    "--print", defaultPrompt,
+    "--print",
+    defaultPrompt,
   ];
 
   const env: Record<string, string> = {
@@ -102,16 +107,18 @@ export async function buildInvokeInfo(agentId: string) {
     MUXAI_RUN_ID: "<generated-at-runtime>",
     MUXAI_API_URL: `http://localhost:${process.env.API_PORT || 3001}`,
     MUXAI_INTERNAL_SECRET: "<runtime-secret>",
-    ...(agent.reports.length > 0 ? {
-      MUXAI_REPORTS: JSON.stringify(
-        agent.reports.map((r) => ({
-          id: r.id,
-          name: r.name,
-          role: r.role,
-          skill: (r.adapterConfig as Record<string, unknown>)?.promptTemplate ?? "",
-        }))
-      ),
-    } : {}),
+    ...(agent.reports.length > 0
+      ? {
+          MUXAI_REPORTS: JSON.stringify(
+            agent.reports.map((r) => ({
+              id: r.id,
+              name: r.name,
+              role: r.role,
+              skill: (r.adapterConfig as Record<string, unknown>)?.promptTemplate ?? "",
+            })),
+          ),
+        }
+      : {}),
   };
 
   return {
@@ -119,7 +126,7 @@ export async function buildInvokeInfo(agentId: string) {
     args,
     cwd,
     env,
-    mcpMode: isBuiltin ? "builtin" : "global" as "builtin" | "global",
+    mcpMode: isBuiltin ? "builtin" : ("global" as "builtin" | "global"),
     mcpConfig,
     model,
     maxTurns,
@@ -160,7 +167,7 @@ export async function invokeAgent(agentId: string, promptOverride?: string) {
 
   // Build env vars injected into the claude process
   const env: Record<string, string> = {
-    ...process.env as Record<string, string>,
+    ...(process.env as Record<string, string>),
     MUXAI_AGENT_ID: agent.id,
     MUXAI_AGENT_NAME: agent.name,
     MUXAI_AGENT_ROLE: agent.role,
@@ -174,7 +181,7 @@ export async function invokeAgent(agentId: string, promptOverride?: string) {
           name: r.name,
           role: r.role,
           skill: (r.adapterConfig as Record<string, unknown>)?.promptTemplate ?? "",
-        }))
+        })),
       ),
     }),
   };
@@ -195,22 +202,25 @@ export async function invokeAgent(agentId: string, promptOverride?: string) {
   // If this agent has reporters, auto-inject team context so the model knows
   // about its team and the orchestrator tools — users shouldn't need to know
   // internal tool names.
-  const skillPrompt = agent.reports.length > 0
-    ? buildSkillPromptWithTeam(baseSkillPrompt, agent.reports)
-    : baseSkillPrompt;
+  const skillPrompt = agent.reports.length > 0 ? buildSkillPromptWithTeam(baseSkillPrompt, agent.reports) : baseSkillPrompt;
 
-  const mcpConfigJson = isBuiltin ? await buildBuiltinMcpConfig() : null;
+  const hasReports = agent.reports.length > 0;
+  const mcpExclude = hasReports ? [] : ["orchestrator"];
+  const mcpConfigJson = isBuiltin ? await buildBuiltinMcpConfig(mcpExclude) : null;
 
   const args = [
-    "--model", model,
-    "--max-turns", String(maxTurns),
+    "--model",
+    model,
+    "--max-turns",
+    String(maxTurns),
     "--dangerously-skip-permissions",
     ...(effort ? ["--effort", effort] : []),
     ...(useChrome ? ["--chrome"] : []),
     ...(mcpConfigJson ? ["--mcp-config", mcpConfigJson, "--strict-mcp-config"] : []),
     ...(allowedTools ? ["--allowedTools", allowedTools] : []),
     ...(skillPrompt ? ["--system-prompt", skillPrompt] : []),
-    "--output-format", "stream-json",
+    "--output-format",
+    "stream-json",
     "--verbose",
     "--print",
     promptOverride || defaultPrompt || buildDefaultPrompt(agent),
@@ -222,18 +232,17 @@ export async function invokeAgent(agentId: string, promptOverride?: string) {
   return run;
 }
 
-function buildSkillPromptWithTeam(
-  base: string | undefined,
-  reports: { name: string; role: string; adapterConfig: unknown }[]
-): string {
-  const roster = reports.map((r) => {
-    const config = r.adapterConfig as Record<string, unknown> | null;
-    const instructions = config?.defaultPrompt ? ` — ${config.defaultPrompt}` : "";
-    return `- ${r.name} (${r.role})${instructions}`;
-  }).join("\n");
+function buildSkillPromptWithTeam(base: string | undefined, reports: { name: string; role: string; adapterConfig: unknown }[]): string {
+  const roster = reports
+    .map((r) => {
+      const config = r.adapterConfig as Record<string, unknown> | null;
+      const instructions = config?.defaultPrompt ? ` — ${config.defaultPrompt}` : "";
+      return `- ${r.name} (role: ${r.role})${instructions}`;
+    })
+    .join("\n");
   const teamBlock = `## Your Team
 
-You have direct reports. Use the orchestrator tools to coordinate them — do not try to do their work yourself.
+You have direct reports. Use the orchestrator tools to coordinate them using their exact names, do not try to do their work yourself.
 
 - Invoke all reporters in parallel: call \`mcp__orchestrator__run_team\`
 - Invoke one reporter by name: call \`mcp__orchestrator__ask_reporter\` with \`{ "name": "<reporter name>" }\`
@@ -256,32 +265,52 @@ function extractLastJson(logs: string): unknown | null {
   // Try fenced blocks first (```json ... ```)
   const fenced = [...logs.matchAll(/```(?:json)?\s*([\s\S]*?)```/g)];
   for (let i = fenced.length - 1; i >= 0; i--) {
-    try { return JSON.parse(fenced[i][1].trim()); } catch { /* continue */ }
+    try {
+      return JSON.parse(fenced[i][1].trim());
+    } catch {
+      /* continue */
+    }
   }
   // Fall back: find all balanced JSON objects/arrays, try from last to first.
   // Properly tracks strings and escape sequences so braces inside strings
   // don't throw off the bracket matching (fixes cases where text follows JSON).
   const candidates: { start: number; end: number }[] = [];
   for (let i = 0; i < logs.length; i++) {
-    if (logs[i] !== '{' && logs[i] !== '[') continue;
+    if (logs[i] !== "{" && logs[i] !== "[") continue;
     const open = logs[i];
-    const close = open === '{' ? '}' : ']';
+    const close = open === "{" ? "}" : "]";
     let depth = 0;
     let inString = false;
     let escape = false;
     for (let j = i; j < logs.length; j++) {
-      if (escape) { escape = false; continue; }
-      if (logs[j] === '\\' && inString) { escape = true; continue; }
-      if (logs[j] === '"') { inString = !inString; continue; }
+      if (escape) {
+        escape = false;
+        continue;
+      }
+      if (logs[j] === "\\" && inString) {
+        escape = true;
+        continue;
+      }
+      if (logs[j] === '"') {
+        inString = !inString;
+        continue;
+      }
       if (inString) continue;
       if (logs[j] === open) depth++;
       else if (logs[j] === close) {
-        if (--depth === 0) { candidates.push({ start: i, end: j }); break; }
+        if (--depth === 0) {
+          candidates.push({ start: i, end: j });
+          break;
+        }
       }
     }
   }
   for (let i = candidates.length - 1; i >= 0; i--) {
-    try { return JSON.parse(logs.slice(candidates[i].start, candidates[i].end + 1)); } catch { /* continue */ }
+    try {
+      return JSON.parse(logs.slice(candidates[i].start, candidates[i].end + 1));
+    } catch {
+      /* continue */
+    }
   }
   return null;
 }
@@ -301,7 +330,10 @@ function parseStreamJson(line: string): string | null {
         if (b.type === "tool_use") {
           const input = b.input as Record<string, unknown> | undefined;
           const hint = input
-            ? Object.entries(input).slice(0, 2).map(([k, v]) => `${k}=${JSON.stringify(v).slice(0, 50)}`).join(", ")
+            ? Object.entries(input)
+                .slice(0, 2)
+                .map(([k, v]) => `${k}=${JSON.stringify(v).slice(0, 50)}`)
+                .join(", ")
             : "";
           parts.push(`▶ ${b.name}${hint ? `(${hint})` : ""}`);
         }
@@ -320,7 +352,6 @@ function parseStreamJson(line: string): string | null {
     return line.trim() || null;
   }
 }
-
 
 /** Returns only text content from assistant messages — excludes tool results and user turns. */
 function extractAssistantText(line: string): string | null {
@@ -343,7 +374,7 @@ function extractAssistantText(line: string): string | null {
 
 function spawnClaudeProcess(opts: {
   run: { id: string };
-  agent: { id: string; };
+  agent: { id: string };
   agentName: string;
   persistLogs: boolean;
   notifyOn: NotificationEvent[];
@@ -400,11 +431,10 @@ function spawnClaudeProcess(opts: {
     const logs = chunks.join("");
     const succeeded = code === 0;
     // Only extract resultJson if a result card is configured — agents with "No Result Card" skip this entirely
-    const resultJson = hasResultCard
-      ? (extractLastJson(assistantTextChunks.join("")) ?? extractLastJson(logs))
-      : null;
+    const resultJson = hasResultCard ? (extractLastJson(assistantTextChunks.join("")) ?? extractLastJson(logs)) : null;
 
-    if (persistLogs) emitGlobalLog({ type: "run_end", agentId: agent.id, agentName, runId: run.id, status: succeeded ? "succeeded" : "failed", ts: Date.now() });
+    if (persistLogs)
+      emitGlobalLog({ type: "run_end", agentId: agent.id, agentName, runId: run.id, status: succeeded ? "succeeded" : "failed", ts: Date.now() });
 
     await prisma.heartbeatRun.update({
       where: { id: run.id },
@@ -423,20 +453,25 @@ function spawnClaudeProcess(opts: {
     // Fire notifications — fire-and-forget, never block run completion
     if (notifyOn.length > 0) {
       const base = { agentName, agentId: agent.id, runId: run.id };
-      prisma.setting.findUnique({ where: { key: "notification_channels" } }).then((row) => {
-        const channels: NotificationChannel[] = row ? JSON.parse(row.value) : [];
-        console.log(`[notifications] agent=${agentName} notifyOn=${JSON.stringify(notifyOn)} channels=${channels.length} succeeded=${succeeded} hasResult=${resultJson !== null}`);
-        if (!succeeded) {
-          dispatchNotifications(channels, notifyOn, { ...base, event: "error", errorMsg: `Process exited with code ${code}`, exitCode: code ?? -1 });
-        } else {
-          if (resultJson) {
-            dispatchNotifications(channels, notifyOn, { ...base, event: "decision", resultJson: resultJson as Record<string, unknown> });
+      prisma.setting
+        .findUnique({ where: { key: "notification_channels" } })
+        .then((row) => {
+          const channels: NotificationChannel[] = row ? JSON.parse(row.value) : [];
+          console.log(
+            `[notifications] agent=${agentName} notifyOn=${JSON.stringify(notifyOn)} channels=${channels.length} succeeded=${succeeded} hasResult=${resultJson !== null}`,
+          );
+          if (!succeeded) {
+            dispatchNotifications(channels, notifyOn, { ...base, event: "error", errorMsg: `Process exited with code ${code}`, exitCode: code ?? -1 });
+          } else {
+            if (resultJson) {
+              dispatchNotifications(channels, notifyOn, { ...base, event: "decision", resultJson: resultJson as Record<string, unknown> });
+            }
+            dispatchNotifications(channels, notifyOn, { ...base, event: "run_end" });
           }
-          dispatchNotifications(channels, notifyOn, { ...base, event: "run_end" });
-        }
-      }).catch((err) => {
-        console.error("[notifications] dispatch setup failed:", err.message);
-      });
+        })
+        .catch((err) => {
+          console.error("[notifications] dispatch setup failed:", err.message);
+        });
     }
 
     await prisma.agent.update({

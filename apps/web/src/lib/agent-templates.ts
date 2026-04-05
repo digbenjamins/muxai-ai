@@ -13,6 +13,7 @@ export interface AgentTemplate {
   id: string;
   label: string;
   description: string;
+  defaultPrompt?: string;
   form: {
     name: string;
     role: string;
@@ -36,6 +37,8 @@ export const AGENT_TEMPLATES: AgentTemplate[] = [
     id: "team-lead",
     label: "Team Lead",
     description: "Lead orchestrator — gathers findings from all team members and outputs a final decision.",
+    defaultPrompt:
+      "Instruct your team to deliver a detailed analysis of BTC/USDT on the 4-hour timeframe. Each team member must strictly use their assigned tools and operate within their specific area of expertise and do not perform tasks outside their role or use tools which are not assigned.",
     mcpPreset: "builtin",
     schedulePreset: "disabled",
     resultCard: { type: "trade-decision", mapping: {} },
@@ -59,7 +62,7 @@ export const AGENT_TEMPLATES: AgentTemplate[] = [
     description: "Fetches crypto news from RSS feeds and CMC, assesses sentiment and impact.",
     mcpPreset: "builtin",
     schedulePreset: "disabled",
-    persistLogs: false,
+    persistLogs: true,
     form: {
       name: "News Analyst",
       role: "news-analyst",
@@ -76,9 +79,10 @@ export const AGENT_TEMPLATES: AgentTemplate[] = [
     id: "technical-analyst",
     label: "Technical Analyst",
     description: "Analyzes charts and CMC technical data to identify directional bias.",
+    defaultPrompt: "When performing technical analysis, always load and review at least the last 390 candles of OHLCV data.",
     mcpPreset: "builtin",
     schedulePreset: "disabled",
-    persistLogs: false,
+    persistLogs: true,
     form: {
       name: "Technical Analyst",
       role: "technical-analyst",
@@ -97,8 +101,8 @@ export const AGENT_TEMPLATES: AgentTemplate[] = [
     description: "Analyzes open interest, funding rates, and fear & greed index.",
     mcpPreset: "builtin",
     schedulePreset: "disabled",
-    persistLogs: false,
-    useChrome: true,
+    persistLogs: true,
+    useChrome: false,
     form: {
       name: "Data Analyst",
       role: "analyst",
@@ -107,7 +111,7 @@ export const AGENT_TEMPLATES: AgentTemplate[] = [
       model: "claude-sonnet-4-6",
       cwd: "",
       allowedTools: "",
-      maxTurnsPerRun: "15",
+      maxTurnsPerRun: "10",
       customCron: "",
     },
   },

@@ -114,6 +114,7 @@ export default function NewAgentPage() {
       ...f,
       ...template.form,
       promptTemplate: "",
+      defaultPrompt: template.defaultPrompt ?? "",
       cwd: template.mcpPreset === "builtin" ? mcpRootPath : template.form.cwd,
     }));
     setUseChrome(template.useChrome ?? false);
