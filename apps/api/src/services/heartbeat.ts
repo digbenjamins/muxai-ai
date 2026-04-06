@@ -70,12 +70,20 @@ export async function buildInvokeInfo(agentId: string) {
   const model = (config.model as string) || "claude-sonnet-4-6";
   const maxTurns = (config.maxTurnsPerRun as number) || 10;
   const effort = config.effort as string | undefined;
-  const allowedTools = config.allowedTools as string | undefined;
+  const disallowedTools = config.disallowedTools as string | undefined;
   const useChrome = Boolean(config.useChrome);
   const isBuiltin = cwd === MUXAI_ROOT;
 
   const baseSkillPrompt = config.promptTemplate as string | undefined;
-  const skillPrompt = agent.reports.length > 0 ? buildSkillPromptWithTeam(baseSkillPrompt, agent.reports) : baseSkillPrompt;
+  const reviewDecisions = Boolean(config.reviewDecisions);
+  let skillPrompt = agent.reports.length > 0 ? buildSkillPromptWithTeam(baseSkillPrompt, agent.reports) : baseSkillPrompt;
+
+  if (reviewDecisions) {
+    const reviewBlock = `## Previous Decisions
+
+Before producing a new result, call \`mcp__orchestrator__get_my_decisions\` to review your recent outputs. Use them as context to know what you decided before. If no previous decisions exist, proceed normally.`;
+    skillPrompt = skillPrompt ? `${skillPrompt}\n\n${reviewBlock}` : reviewBlock;
+  }
 
   const defaultPrompt = (config.defaultPrompt as string) || buildDefaultPrompt(agent);
 
@@ -91,7 +99,7 @@ export async function buildInvokeInfo(agentId: string) {
     ...(effort ? ["--effort", effort] : []),
     ...(useChrome ? ["--chrome"] : []),
     ...(isBuiltin ? ["--mcp-config", "<mcp-config>", "--strict-mcp-config"] : []),
-    ...(allowedTools ? ["--allowedTools", allowedTools] : []),
+    ...(disallowedTools ? ["--disallowedTools", disallowedTools] : []),
     ...(skillPrompt ? ["--system-prompt", "<system-prompt>"] : []),
     "--output-format",
     "stream-json",
@@ -192,17 +200,27 @@ export async function invokeAgent(agentId: string, promptOverride?: string) {
   const defaultPrompt = config.defaultPrompt as string | undefined;
   const maxTurns = (config.maxTurnsPerRun as number) || 10;
   const effort = config.effort as string | undefined;
-  const allowedTools = config.allowedTools as string | undefined;
+  const disallowedTools = config.disallowedTools as string | undefined;
   const useChrome = Boolean(config.useChrome);
   const persistLogs = Boolean(config.persistLogs);
   const notifyOn = (config.notifyOn ?? []) as NotificationEvent[];
   const hasResultCard = !!(config.resultCard && (config.resultCard as Record<string, unknown>).type !== "none");
   const isBuiltin = cwd === MUXAI_ROOT;
 
+  const reviewDecisions = Boolean(config.reviewDecisions);
+
   // If this agent has reporters, auto-inject team context so the model knows
   // about its team and the orchestrator tools — users shouldn't need to know
   // internal tool names.
-  const skillPrompt = agent.reports.length > 0 ? buildSkillPromptWithTeam(baseSkillPrompt, agent.reports) : baseSkillPrompt;
+  let skillPrompt = agent.reports.length > 0 ? buildSkillPromptWithTeam(baseSkillPrompt, agent.reports) : baseSkillPrompt;
+
+  // If reviewDecisions is enabled, inject instruction to check past decisions first
+  if (reviewDecisions) {
+    const reviewBlock = `## Previous Decisions
+
+Before producing a new result, call \`mcp__orchestrator__get_my_decisions\` to review your recent outputs. Use them as context to know what you decided before. If no previous decisions exist, proceed normally.`;
+    skillPrompt = skillPrompt ? `${skillPrompt}\n\n${reviewBlock}` : reviewBlock;
+  }
 
   const hasReports = agent.reports.length > 0;
   const mcpExclude = hasReports ? [] : ["orchestrator"];
@@ -217,7 +235,7 @@ export async function invokeAgent(agentId: string, promptOverride?: string) {
     ...(effort ? ["--effort", effort] : []),
     ...(useChrome ? ["--chrome"] : []),
     ...(mcpConfigJson ? ["--mcp-config", mcpConfigJson, "--strict-mcp-config"] : []),
-    ...(allowedTools ? ["--allowedTools", allowedTools] : []),
+    ...(disallowedTools ? ["--disallowedTools", disallowedTools] : []),
     ...(skillPrompt ? ["--system-prompt", skillPrompt] : []),
     "--output-format",
     "stream-json",
