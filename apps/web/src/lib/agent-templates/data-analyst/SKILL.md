@@ -51,7 +51,25 @@ Key interpretations:
 
 Neutral rate ≈ 0.01%. Extreme readings (>2–3x neutral) = overextension risk. Use as confluence, not standalone signal (~15–25% weight in multi-factor model).
 
-### 3. Fear & Greed
+### 3. Long/Short Ratio & Top Trader Positioning
+
+Fetch using `mcp__crypto-data__get_long_short_ratio` (global) and `mcp__crypto-data__get_top_trader_positions` (top 20% by margin).
+
+Key interpretations:
+- Global ratio skewed long + top traders skewed short = retail vs smart money divergence (bearish signal)
+- Both aligned long = broad conviction (bullish, but watch for crowded trade)
+- Both aligned short = broad bearish consensus (watch for short squeeze)
+- Top trader positioning is more reliable than global — weight it higher
+
+### 4. Taker Buy/Sell Volume
+
+Fetch using `mcp__crypto-data__get_taker_buy_sell_volume`.
+
+- Ratio > 1 = aggressive buyers dominating (bullish pressure)
+- Ratio < 1 = aggressive sellers dominating (bearish pressure)
+- Spikes in taker volume confirm conviction behind a move. Low taker volume during a move = weak follow-through.
+
+### 5. Fear & Greed
 
 If available, use `mcp__cmc-mcp__get_global_metrics_latest` for current fear & greed index.
 If `mcp__cmc-mcp__get_global_metrics_latest` is unavailable, skip this fear & greed section.
@@ -68,7 +86,7 @@ Extreme readings that begin to moderate often signal reversals. Check rate of ch
 
 ## Analysis Framework
 
-1. **Data Collection** — Gather all three indicators
+1. **Data Collection** — Gather all indicators
 2. **Individual Analysis** — Assess each independently, note extremes
 3. **Cross-Indicator Correlation** — Look for confluence or contradictions
 4. **Confidence Assessment** — High / Medium / Low with reasoning
@@ -83,6 +101,8 @@ Extreme readings that begin to moderate often signal reversals. Check rate of ch
 
 **Open Interest**: [Value + 1h/4h/24h changes + interpretation]
 **Funding Rate**: [Current rate + signal]
+**Long/Short Ratio**: [Global ratio + top trader ratio + divergence if any]
+**Taker Volume**: [Buy/sell ratio + pressure direction]
 **Fear & Greed**: [Index value + sentiment level + trend]
 **Confluence**: [Where indicators agree or conflict]
 **Bias**: [Bullish / Bearish / Neutral] — [Confidence: High / Medium / Low]
@@ -93,6 +113,9 @@ Extreme readings that begin to moderate often signal reversals. Check rate of ch
 | ----------------------------------------------------- | ----------- | --------------------------------------------------------- |
 | `mcp__crypto-data__get_open_interest`                 | **Primary** | Current OI with 1h/4h/24h change for any futures pair.    |
 | `mcp__crypto-data__get_funding_rate`                  | **Primary** | Current funding rate, mark/index price, next funding time.|
+| `mcp__crypto-data__get_long_short_ratio`              | **Primary** | Global long/short account ratio — crowd positioning.      |
+| `mcp__crypto-data__get_top_trader_positions`          | **Primary** | Top 20% trader positioning — smart money signal.          |
+| `mcp__crypto-data__get_taker_buy_sell_volume`         | **Primary** | Aggressive buy vs sell pressure from taker volume.        |
 | `mcp__cmc-mcp__get_global_metrics_latest`             | **Primary** | Fear & greed index and global market snapshot.            |
 | `mcp__cmc-mcp__get_crypto_metrics`                    | Secondary   | Per-asset market metrics for additional context.          |
 | `mcp__cmc-mcp__get_crypto_quotes_latest`              | Secondary   | Current price and volume data when needed.                |
