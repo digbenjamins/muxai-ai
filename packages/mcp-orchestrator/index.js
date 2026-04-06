@@ -3,15 +3,16 @@ import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 
-const server = new Server(
-  { name: "orchestrator", version: "1.0.0" },
-  { capabilities: { tools: {} } }
-);
+const server = new Server({ name: "orchestrator", version: "1.0.0" }, { capabilities: { tools: {} } });
 
 function getTeam() {
   const raw = process.env.MUXAI_REPORTS;
   if (!raw) return [];
-  try { return JSON.parse(raw); } catch { return []; }
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return [];
+  }
 }
 
 function getApiUrl() {
@@ -101,6 +102,20 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
         required: ["name"],
       },
     },
+    {
+      name: "get_my_decisions",
+      description: "Fetch your own recent decisions (trade results). " + "Use this before making a new decision to review what you decided previously.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          limit: {
+            type: "number",
+            description: "Number of recent decisions to fetch (default 5, max 20).",
+          },
+        },
+        required: [],
+      },
+    },
   ],
 }));
 
@@ -120,7 +135,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       team.map(async (member) => {
         const run = await invokeAndWait(member.id, member.name, task);
         return { name: member.name, role: member.role, status: run.status, result: run.logs ?? "" };
-      })
+      }),
     );
 
     const output = results.map((r, i) => {
@@ -138,8 +153,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   if (name === "ask_reporter") {
     const reporterName = args?.name;
     const normalize = (s) => s.toLowerCase().replace(/[\s_-]+/g, "");
-    const member = team.find((m) => m.name === reporterName)
-      || team.find((m) => normalize(m.name) === normalize(reporterName ?? ""));
+    const member = team.find((m) => m.name === reporterName) || team.find((m) => normalize(m.name) === normalize(reporterName ?? ""));
     if (!member) {
       const available = team.map((m) => m.name).join(", ");
       return { content: [{ type: "text", text: `Reporter "${reporterName}" not found. Available reporters: ${available || "none"}` }] };
@@ -148,6 +162,41 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const run = await invokeAndWait(member.id, member.name, args?.task);
     const output = `## ${member.name} (${member.role})\nStatus: ${run.status}\n\n${run.logs ?? ""}`;
     return { content: [{ type: "text", text: output }] };
+  }
+
+  if (name === "get_my_decisions") {
+    const agentId = process.env.MUXAI_AGENT_ID;
+    const limit = args?.limit || 5;
+
+    if (!agentId) {
+      return { content: [{ type: "text", text: "Could not determine agent identity from the environment." }] };
+    }
+
+    log(`Fetching previous decisions for agent ${agentId} (limit: ${limit})`);
+
+    try {
+      const url = `${getApiUrl()}/api/agents/decisions?agentId=${encodeURIComponent(agentId)}&limit=${limit}`;
+      const res = await fetch(url, { headers: internalHeaders() });
+      if (!res.ok) {
+        const err = await res.text();
+        return { content: [{ type: "text", text: `Failed to fetch decisions: ${res.status} — ${err}` }] };
+      }
+      const data = await res.json();
+
+      if (data.count === 0) {
+        return { content: [{ type: "text", text: `No previous decisions found for "${agentName}".` }] };
+      }
+
+      const lines = data.decisions.map((d, i) => {
+        const date = d.finishedAt ? new Date(d.finishedAt).toISOString() : "unknown";
+        return `### Decision ${i + 1} (${date})\n\`\`\`json\n${JSON.stringify(d.decision, null, 2)}\n\`\`\``;
+      });
+
+      const header = `## Previous Decisions — ${data.agentName} (${data.agentRole})\n${data.count} most recent:\n`;
+      return { content: [{ type: "text", text: header + lines.join("\n\n") }] };
+    } catch (err) {
+      return { content: [{ type: "text", text: `Error fetching decisions: ${err.message}` }] };
+    }
   }
 
   return { content: [{ type: "text", text: `Unknown tool: ${name}` }] };

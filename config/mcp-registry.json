@@ -62,6 +62,11 @@
         "name": "ask_reporter",
         "fullName": "mcp__orchestrator__ask_reporter",
         "description": "Invoke a single direct report by name and wait for their result."
+      },
+      {
+        "name": "get_my_decisions",
+        "fullName": "mcp__orchestrator__get_my_decisions",
+        "description": "Fetch your own recent decisions. Use before making a new decision to review what you decided previously."
       }
     ]
   },
@@ -111,7 +116,7 @@
   {
     "id": "crypto-data",
     "label": "Crypto Data",
-    "description": "Fetches derivatives market data from Binance Futures. Provides current funding rates and open interest with 1h/4h/24h change tracking.",
+    "description": "Fetches derivatives market data from Binance Futures. Funding rates, open interest, long/short ratios, top trader positions, and taker buy/sell volume.",
     "command": "node",
     "args": ["packages/mcp-crypto-data/index.js"],
     "tools": [
@@ -124,6 +129,21 @@
         "name": "get_open_interest",
         "fullName": "mcp__crypto-data__get_open_interest",
         "description": "Get current open interest with 1h, 4h, and 24h change percentages for a futures pair."
+      },
+      {
+        "name": "get_long_short_ratio",
+        "fullName": "mcp__crypto-data__get_long_short_ratio",
+        "description": "Get the global long/short account ratio showing percentage of accounts long vs short."
+      },
+      {
+        "name": "get_top_trader_positions",
+        "fullName": "mcp__crypto-data__get_top_trader_positions",
+        "description": "Get the long/short position ratio of the top 20% of traders by margin balance."
+      },
+      {
+        "name": "get_taker_buy_sell_volume",
+        "fullName": "mcp__crypto-data__get_taker_buy_sell_volume",
+        "description": "Get taker buy vs sell volume ratio showing aggressive buyer/seller pressure."
       }
     ]
   },

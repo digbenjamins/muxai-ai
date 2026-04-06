@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
-import { prisma } from "../lib/db";
+import { prisma, Prisma } from "../lib/db";
 import { invokeAgent, stopRun, buildInvokeInfo } from "../services/heartbeat";
 import { syncAgentSchedule } from "../services/scheduler";
 import { generateWallet, exportWalletKey, generateEvmWallet, exportEvmWalletKey } from "../services/wallet";
@@ -8,7 +8,7 @@ import { isInternalRequest } from "../services/internal-secret";
 
 const USDC_MINTS: Record<string, string> = {
   "mainnet-beta": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
-  "devnet": "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU",
+  devnet: "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU",
 };
 
 async function getSolanaConfig() {
@@ -50,14 +50,16 @@ async function getBaseBalances(address: string, rpcUrl: string) {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        jsonrpc: "2.0", id: 2, method: "eth_call",
+        jsonrpc: "2.0",
+        id: 2,
+        method: "eth_call",
         params: [{ to: BASE_USDC, data: `${ERC20_BALANCE_OF}${paddedAddress}` }, "latest"],
       }),
     }),
   ]);
 
-  const ethData = await ethRes.json() as { result?: string; error?: { message: string } };
-  const usdcData = await usdcRes.json() as { result?: string; error?: { message: string } };
+  const ethData = (await ethRes.json()) as { result?: string; error?: { message: string } };
+  const usdcData = (await usdcRes.json()) as { result?: string; error?: { message: string } };
 
   if (ethData.error) throw new Error(`Base RPC error: ${ethData.error.message}`);
 
@@ -110,12 +112,54 @@ agentRoutes.post("/", async (req, res) => {
   const agent = await prisma.agent.create({
     data: {
       ...parsed.data,
-      walletAddress: wallet.address, walletKey: wallet.keyBytes,
-      walletAddressEvm: evmWallet.address, walletKeyEvm: evmWallet.keyHex,
+      walletAddress: wallet.address,
+      walletKey: wallet.keyBytes,
+      walletAddressEvm: evmWallet.address,
+      walletKeyEvm: evmWallet.keyHex,
     } as any,
   });
   syncAgentSchedule(agent.id, agent.runtimeConfig);
   res.status(201).json(agent);
+});
+
+// GET /api/agents/decisions — fetch recent decisions (runs with resultJson) by agent ID
+// Used by orchestrator MCP's get_my_decisions tool
+agentRoutes.get("/decisions", async (req, res) => {
+  if (!isInternalRequest(req)) {
+    res.status(401).json({ error: "Internal access only" });
+    return;
+  }
+  const agentId = req.query.agentId as string | undefined;
+  const limit = Math.min(Number(req.query.limit) || 5, 20);
+
+  if (!agentId) {
+    res.status(400).json({ error: "agentId query parameter is required" });
+    return;
+  }
+
+  const agent = await prisma.agent.findUnique({ where: { id: agentId } });
+  if (!agent) {
+    res.status(404).json({ error: `Agent not found` });
+    return;
+  }
+
+  const runs = await prisma.heartbeatRun.findMany({
+    where: { agentId: agent.id, NOT: { resultJson: { equals: Prisma.DbNull } } },
+    orderBy: { finishedAt: "desc" },
+    take: limit,
+    select: { id: true, finishedAt: true, resultJson: true },
+  });
+
+  res.json({
+    agentName: agent.name,
+    agentRole: agent.role,
+    count: runs.length,
+    decisions: runs.map((r) => ({
+      runId: r.id,
+      finishedAt: r.finishedAt,
+      decision: r.resultJson,
+    })),
+  });
 });
 
 // GET /api/agents/:id
@@ -238,8 +282,14 @@ agentRoutes.get("/:id/wallet/key", async (req, res) => {
     return;
   }
   const agent = await prisma.agent.findUnique({ where: { id: req.params.id } });
-  if (!agent) { res.status(404).json({ error: "Agent not found" }); return; }
-  if (!agent.walletKey && !agent.walletKeyEvm) { res.status(404).json({ error: "No wallet" }); return; }
+  if (!agent) {
+    res.status(404).json({ error: "Agent not found" });
+    return;
+  }
+  if (!agent.walletKey && !agent.walletKeyEvm) {
+    res.status(404).json({ error: "No wallet" });
+    return;
+  }
   try {
     const solana = agent.walletKey ? await exportWalletKey(agent.walletKey) : null;
     const evmKey = agent.walletKeyEvm ? await exportEvmWalletKey(agent.walletKeyEvm) : null;
@@ -258,7 +308,10 @@ agentRoutes.get("/:id/wallet/key", async (req, res) => {
 // GET /api/agents/:id/wallet — return Solana + Base addresses and balances
 agentRoutes.get("/:id/wallet", async (req, res) => {
   const agent = await prisma.agent.findUnique({ where: { id: req.params.id } });
-  if (!agent) { res.status(404).json({ error: "Agent not found" }); return; }
+  if (!agent) {
+    res.status(404).json({ error: "Agent not found" });
+    return;
+  }
 
   const [solanaConfig, baseConfig] = await Promise.all([getSolanaConfig(), getBaseConfig()]);
   const { network, rpcUrl, usdcMint } = solanaConfig;
@@ -281,18 +334,21 @@ agentRoutes.get("/:id/wallet", async (req, res) => {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            jsonrpc: "2.0", id: 2,
+            jsonrpc: "2.0",
+            id: 2,
             method: "getTokenAccountsByOwner",
             params: [agent.walletAddress, { mint: usdcMint }, { encoding: "jsonParsed" }],
           }),
         }),
       ]);
-      const solData = await solRes.json() as { result?: { value?: number } };
+      const solData = (await solRes.json()) as { result?: { value?: number } };
       solBalance = solData.result?.value != null ? solData.result.value / 1e9 : 0;
-      const usdcData = await usdcRes.json() as { result?: { value?: { account: { data: { parsed: { info: { tokenAmount: { uiAmount: number } } } } } }[] } };
+      const usdcData = (await usdcRes.json()) as { result?: { value?: { account: { data: { parsed: { info: { tokenAmount: { uiAmount: number } } } } } }[] } };
       const accounts = usdcData.result?.value ?? [];
       usdcBalance = accounts.length > 0 ? (accounts[0].account.data.parsed.info.tokenAmount.uiAmount ?? 0) : 0;
-    } catch { /* RPC unavailable */ }
+    } catch {
+      /* RPC unavailable */
+    }
   }
 
   let baseRpcError: string | null = null;
@@ -308,8 +364,14 @@ agentRoutes.get("/:id/wallet", async (req, res) => {
   }
 
   res.json({
-    address: agent.walletAddress, solBalance, usdcBalance, network,
-    addressEvm: agent.walletAddressEvm, ethBalance, usdcBalanceBase, baseNetwork,
+    address: agent.walletAddress,
+    solBalance,
+    usdcBalance,
+    network,
+    addressEvm: agent.walletAddressEvm,
+    ethBalance,
+    usdcBalanceBase,
+    baseNetwork,
     ...(baseRpcError ? { baseRpcError } : {}),
   });
 });
@@ -317,8 +379,14 @@ agentRoutes.get("/:id/wallet", async (req, res) => {
 // POST /api/agents/:id/wallet/export — decrypt and return Solana private key for manual use
 agentRoutes.post("/:id/wallet/export", async (req, res) => {
   const agent = await prisma.agent.findUnique({ where: { id: req.params.id } });
-  if (!agent) { res.status(404).json({ error: "Agent not found" }); return; }
-  if (!agent.walletKey) { res.status(404).json({ error: "No Solana wallet found" }); return; }
+  if (!agent) {
+    res.status(404).json({ error: "Agent not found" });
+    return;
+  }
+  if (!agent.walletKey) {
+    res.status(404).json({ error: "No Solana wallet found" });
+    return;
+  }
   try {
     const exported = await exportWalletKey(agent.walletKey);
     res.json({ address: agent.walletAddress, ...exported });
@@ -330,8 +398,14 @@ agentRoutes.post("/:id/wallet/export", async (req, res) => {
 // POST /api/agents/:id/wallet/export/evm — decrypt and return EVM private key for manual use
 agentRoutes.post("/:id/wallet/export/evm", async (req, res) => {
   const agent = await prisma.agent.findUnique({ where: { id: req.params.id } });
-  if (!agent) { res.status(404).json({ error: "Agent not found" }); return; }
-  if (!agent.walletKeyEvm) { res.status(404).json({ error: "No EVM wallet found" }); return; }
+  if (!agent) {
+    res.status(404).json({ error: "Agent not found" });
+    return;
+  }
+  if (!agent.walletKeyEvm) {
+    res.status(404).json({ error: "No EVM wallet found" });
+    return;
+  }
   try {
     const privateKey = await exportEvmWalletKey(agent.walletKeyEvm);
     res.json({ address: agent.walletAddressEvm, privateKey });
@@ -343,7 +417,10 @@ agentRoutes.post("/:id/wallet/export/evm", async (req, res) => {
 // POST /api/agents/:id/wallet — generate both Solana + EVM wallets if not already set
 agentRoutes.post("/:id/wallet", async (req, res) => {
   const agent = await prisma.agent.findUnique({ where: { id: req.params.id } });
-  if (!agent) { res.status(404).json({ error: "Agent not found" }); return; }
+  if (!agent) {
+    res.status(404).json({ error: "Agent not found" });
+    return;
+  }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const updates: any = {};
@@ -370,7 +447,10 @@ agentRoutes.post("/:id/wallet", async (req, res) => {
 // GET /api/agents/:id/invoke-info
 agentRoutes.get("/:id/invoke-info", async (req, res) => {
   const agent = await prisma.agent.findUnique({ where: { id: req.params.id } });
-  if (!agent) { res.status(404).json({ error: "Agent not found" }); return; }
+  if (!agent) {
+    res.status(404).json({ error: "Agent not found" });
+    return;
+  }
   const info = await buildInvokeInfo(req.params.id);
   res.json(info);
 });
