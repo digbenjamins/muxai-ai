@@ -74,7 +74,8 @@ export function LogStreamProvider({ children }: { children: React.ReactNode }) {
     const es = new EventSource(`${API_URL}/api/logs/stream`);
 
     es.onmessage = (e) => {
-      const event = JSON.parse(e.data) as GlobalLogEvent;
+      let event: GlobalLogEvent;
+      try { event = JSON.parse(e.data); } catch { return; }
 
       if (event.type === "run_start") {
         setActiveRuns((n) => n + 1);

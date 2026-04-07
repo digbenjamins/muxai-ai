@@ -131,7 +131,8 @@ export default function ChatPage() {
     esRef.current = es;
 
     es.onmessage = (e) => {
-      const event = JSON.parse(e.data) as { type: string; data?: string; status?: string };
+      let event: { type: string; data?: string; status?: string };
+      try { event = JSON.parse(e.data); } catch { return; }
 
       if (event.type === "log" && event.data) {
         const lines = event.data.split("\n").filter((l) => l.trim());

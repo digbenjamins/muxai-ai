@@ -41,11 +41,12 @@ export function LiveLogs({ runId, initialLogs, initialStatus, startedAt }: LiveL
     const es = new EventSource(`${API_URL}/api/runs/${runId}/stream`);
 
     es.onmessage = (e) => {
-      const event = JSON.parse(e.data);
+      let event: { type: string; data?: string; status?: string };
+      try { event = JSON.parse(e.data); } catch { return; }
       if (event.type === "log") {
         setLogs((prev) => prev + event.data);
       } else if (event.type === "done") {
-        setStatus(event.status);
+        if (event.status) setStatus(event.status as RunStatus);
         es.close();
       }
     };

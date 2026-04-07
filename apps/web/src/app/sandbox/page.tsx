@@ -90,7 +90,8 @@ export default function SandboxPage() {
     esRef.current = es;
 
     es.onmessage = (e) => {
-      const event = JSON.parse(e.data) as { type: string; data?: string; status?: string; sessionId?: string };
+      let event: { type: string; data?: string; status?: string; sessionId?: string };
+      try { event = JSON.parse(e.data); } catch { return; }
 
       if (event.type === "session" && event.sessionId) {
         setSessionId(event.sessionId);
