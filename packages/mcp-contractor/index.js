@@ -27,7 +27,7 @@ async function fetchContractor(name) {
   });
   if (res.status === 404) return null;
   if (!res.ok) throw new Error(`Failed to fetch contractor: ${res.status}`);
-  return res.json();
+  try { return await res.json(); } catch { throw new Error("Invalid JSON from contractor endpoint"); }
 }
 
 async function fetchAllContractors() {
@@ -35,7 +35,7 @@ async function fetchAllContractors() {
     headers: internalHeaders(),
   });
   if (!res.ok) throw new Error(`Failed to fetch contractors: ${res.status}`);
-  return res.json();
+  try { return await res.json(); } catch { throw new Error("Invalid JSON from contractors endpoint"); }
 }
 
 async function callContractor(contractor, prompt) {
@@ -86,47 +86,52 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
   const { name, arguments: args } = request.params;
 
-  if (name === "list_contractors") {
-    const contractors = await fetchAllContractors();
-    if (contractors.length === 0) {
-      return { content: [{ type: "text", text: "No contractors registered." }] };
+  try {
+    if (name === "list_contractors") {
+      const contractors = await fetchAllContractors();
+      if (!Array.isArray(contractors) || contractors.length === 0) {
+        return { content: [{ type: "text", text: "No contractors registered." }] };
+      }
+      const lines = contractors.map((c) =>
+        `• ${c.name} — ${c.model} (${c.provider}) — Contract: ${c.status.toUpperCase()}${c.description ? ` — ${c.description}` : ""}`
+      );
+      return { content: [{ type: "text", text: lines.join("\n") }] };
     }
-    const lines = contractors.map((c) =>
-      `• ${c.name} — ${c.model} (${c.provider}) — Contract: ${c.status.toUpperCase()}${c.description ? ` — ${c.description}` : ""}`
-    );
-    return { content: [{ type: "text", text: lines.join("\n") }] };
-  }
 
-  if (name === "ask_contractor") {
-    const { name: contractorName, prompt } = args;
-    log(`Looking up contract for "${contractorName}"...`);
+    if (name === "ask_contractor") {
+      const { name: contractorName, prompt } = args;
+      log(`Looking up contract for "${contractorName}"...`);
 
-    const contractor = await fetchContractor(contractorName);
+      const contractor = await fetchContractor(contractorName);
 
-    if (!contractor) {
+      if (!contractor) {
+        return {
+          content: [{ type: "text", text: `No contract found for "${contractorName}". Use list_contractors to see available agreements.` }],
+          isError: true,
+        };
+      }
+
+      if (contractor.status !== "active") {
+        return {
+          content: [{ type: "text", text: `Contract with "${contractorName}" is ${contractor.status.toUpperCase()}. Cannot proceed without an active agreement.` }],
+          isError: true,
+        };
+      }
+
+      log(`Calling ${contractorName} (${contractor.model})...`);
+      const response = await callContractor(contractor, prompt);
+      log(`${contractorName} responded (${response.length} chars)`);
+
       return {
-        content: [{ type: "text", text: `No contract found for "${contractorName}". Use list_contractors to see available agreements.` }],
-        isError: true,
+        content: [{ type: "text", text: `[${contractorName} / ${contractor.model}]\n\n${response}` }],
       };
     }
 
-    if (contractor.status !== "active") {
-      return {
-        content: [{ type: "text", text: `Contract with "${contractorName}" is ${contractor.status.toUpperCase()}. Cannot proceed without an active agreement.` }],
-        isError: true,
-      };
-    }
-
-    log(`Calling ${contractorName} (${contractor.model})...`);
-    const response = await callContractor(contractor, prompt);
-    log(`${contractorName} responded (${response.length} chars)`);
-
-    return {
-      content: [{ type: "text", text: `[${contractorName} / ${contractor.model}]\n\n${response}` }],
-    };
+    return { content: [{ type: "text", text: `Unknown tool: ${name}` }], isError: true };
+  } catch (err) {
+    log(`Error: ${err.message}`);
+    return { content: [{ type: "text", text: `Error: ${err.message}` }], isError: true };
   }
-
-  return { content: [{ type: "text", text: `Unknown tool: ${name}` }], isError: true };
 });
 
 const transport = new StdioServerTransport();
