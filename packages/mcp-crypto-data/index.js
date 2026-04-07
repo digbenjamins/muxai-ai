@@ -247,6 +247,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         limit: "288",
       });
 
+      if (!Array.isArray(history)) throw new Error("Unexpected response from Binance OI history endpoint");
       const entries = history.map((d) => ({
         timestamp: d.timestamp,
         oi: parseFloat(d.sumOpenInterest),
@@ -306,6 +307,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         limit: String(limit),
       });
 
+      if (!Array.isArray(data) || data.length === 0) throw new Error("No long/short ratio data returned from Binance");
       const entries = data.map((d) => ({
         time: new Date(d.timestamp).toISOString(),
         longShortRatio: parseFloat(d.longShortRatio),
@@ -345,6 +347,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         limit: String(limit),
       });
 
+      if (!Array.isArray(data) || data.length === 0) throw new Error("No top trader position data returned from Binance");
       const entries = data.map((d) => ({
         time: new Date(d.timestamp).toISOString(),
         longShortRatio: parseFloat(d.longShortRatio),
@@ -384,6 +387,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         limit: String(limit),
       });
 
+      if (!Array.isArray(data) || data.length === 0) throw new Error("No taker buy/sell data returned from Binance");
       const entries = data.map((d) => ({
         time: new Date(d.timestamp).toISOString(),
         buySellRatio: parseFloat(d.buySellRatio),
