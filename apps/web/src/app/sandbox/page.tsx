@@ -123,6 +123,13 @@ export default function SandboxPage() {
 
     es.onerror = () => {
       setRunning(false);
+      setTurns((prev) =>
+        prev.map((t) =>
+          t.id === newTurnId && !t.done
+            ? { ...t, lines: [...t.lines, { id: lineId++, text: "Connection lost.", kind: "error" as const }], done: true, status: "failed" as const }
+            : t
+        )
+      );
       es.close();
       esRef.current = null;
     };

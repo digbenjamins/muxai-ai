@@ -51,7 +51,10 @@ export function LiveLogs({ runId, initialLogs, initialStatus, startedAt }: LiveL
       }
     };
 
-    es.onerror = () => es.close();
+    es.onerror = () => {
+      es.close();
+      setStatus("failed");
+    };
 
     return () => es.close();
   }, [runId, isLive]);

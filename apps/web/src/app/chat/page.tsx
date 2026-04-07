@@ -92,7 +92,11 @@ export default function ChatPage() {
       setSession(data.session);
       setMessages(data.messages);
       setStreamLines([]);
-    } catch {}
+    } catch {
+      setSession(null);
+      setMessages([]);
+      setStreamLines([{ id: lineId++, text: "Failed to load chat session. Check that the API is running.", kind: "error" }]);
+    }
   }
 
   async function handleSend() {
@@ -154,6 +158,7 @@ export default function ChatPage() {
 
     es.onerror = () => {
       setRunning(false);
+      setStreamLines((prev) => [...prev, { id: lineId++, text: "Connection lost.", kind: "error" }]);
       es.close();
       esRef.current = null;
     };
