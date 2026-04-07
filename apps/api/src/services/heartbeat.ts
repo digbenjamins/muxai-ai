@@ -21,21 +21,31 @@ export function stopRun(runId: string): boolean {
 }
 
 async function buildBuiltinMcpConfig(excludeServers: string[] = []): Promise<string> {
+  type McpEntry =
+    | { command: string; args: string[] }
+    | { type: "http"; url: string; headers?: Record<string, string> };
+
   const registry = JSON.parse(readFileSync(REGISTRY_PATH, "utf-8")) as {
     id: string;
-    command: string;
-    args: string[];
+    type?: string;
+    url?: string;
+    command?: string;
+    args?: string[];
   }[];
   // Check for globally disabled built-in servers
   const disabledSetting = await prisma.setting.findUnique({ where: { key: "mcp_disabled_servers" } });
   const disabled: string[] = disabledSetting?.value ? JSON.parse(disabledSetting.value) : [];
-  const mcpServers: Record<string, { command: string; args: string[] }> = {};
+  const mcpServers: Record<string, McpEntry> = {};
   for (const server of registry) {
     if (disabled.includes(server.id) || excludeServers.includes(server.id)) continue;
-    mcpServers[server.id] = {
-      command: server.command,
-      args: server.args.map((a) => (path.isAbsolute(a) ? a : path.join(MUXAI_ROOT, a))),
-    };
+    if (server.type === "http" && server.url) {
+      mcpServers[server.id] = { type: "http", url: server.url };
+    } else {
+      mcpServers[server.id] = {
+        command: server.command!,
+        args: (server.args ?? []).map((a) => (path.isAbsolute(a) ? a : path.join(MUXAI_ROOT, a))),
+      };
+    }
   }
   // Merge custom DB servers
   const custom = await prisma.mcpServer.findMany();
@@ -46,7 +56,7 @@ async function buildBuiltinMcpConfig(excludeServers: string[] = []): Promise<str
         type: "http",
         url: server.command,
         ...(server.headers ? { headers: server.headers as Record<string, string> } : {}),
-      } as unknown as { command: string; args: string[] };
+      };
     } else {
       mcpServers[server.name] = { command: server.command, args: server.args as string[] };
     }
