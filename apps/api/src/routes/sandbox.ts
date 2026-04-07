@@ -15,25 +15,33 @@ const REGISTRY_PATH = path.join(MUXAI_ROOT, "config/mcp-registry.json");
 const active = new Map<string, ReturnType<typeof spawn>>();
 
 async function buildMcpConfig(): Promise<string> {
+  type McpEntry =
+    | { command: string; args: string[] }
+    | { type: "http"; url: string; headers?: Record<string, string> };
+
   const registry = JSON.parse(readFileSync(REGISTRY_PATH, "utf-8")) as {
-    id: string; command: string; args: string[];
+    id: string; type?: string; url?: string; command?: string; args?: string[];
   }[];
   // Check for globally disabled built-in servers
   const disabledSetting = await prisma.setting.findUnique({ where: { key: "mcp_disabled_servers" } });
   const disabled: string[] = disabledSetting?.value ? JSON.parse(disabledSetting.value) : [];
-  const mcpServers: Record<string, unknown> = {};
+  const mcpServers: Record<string, McpEntry> = {};
   for (const s of registry) {
     if (disabled.includes(s.id)) continue;
-    mcpServers[s.id] = {
-      command: s.command,
-      args: s.args.map((a) => (path.isAbsolute(a) ? a : path.join(MUXAI_ROOT, a))),
-    };
+    if (s.type === "http" && s.url) {
+      mcpServers[s.id] = { type: "http", url: s.url };
+    } else {
+      mcpServers[s.id] = {
+        command: s.command!,
+        args: (s.args ?? []).map((a) => (path.isAbsolute(a) ? a : path.join(MUXAI_ROOT, a))),
+      };
+    }
   }
   const custom = await prisma.mcpServer.findMany();
   for (const s of custom) {
     const isHttp = s.command.startsWith("http://") || s.command.startsWith("https://");
     mcpServers[s.name] = isHttp
-      ? { type: "http", url: s.command, ...(s.headers ? { headers: s.headers } : {}) }
+      ? { type: "http", url: s.command, ...(s.headers ? { headers: s.headers as Record<string, string> } : {}) }
       : { command: s.command, args: s.args as string[] };
   }
   return JSON.stringify({ mcpServers });
@@ -159,9 +167,13 @@ sandboxRoutes.get("/:runId/stream", (req, res) => {
   res.flushHeaders();
 
   const unsubscribe = onRunEvent(req.params.runId, (event) => {
-    res.write(`data: ${JSON.stringify(event)}\n\n`);
-    if (event.type === "done") {
-      res.end();
+    try {
+      res.write(`data: ${JSON.stringify(event)}\n\n`);
+      if (event.type === "done") {
+        res.end();
+        unsubscribe();
+      }
+    } catch {
       unsubscribe();
     }
   });

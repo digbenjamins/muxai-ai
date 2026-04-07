@@ -85,9 +85,13 @@ runRoutes.get("/:id/stream", async (req, res) => {
   res.flushHeaders();
 
   const unsubscribe = onRunEvent(run.id, (event) => {
-    res.write(`data: ${JSON.stringify(event)}\n\n`);
-    if (event.type === "done") {
-      res.end();
+    try {
+      res.write(`data: ${JSON.stringify(event)}\n\n`);
+      if (event.type === "done") {
+        res.end();
+        unsubscribe();
+      }
+    } catch {
       unsubscribe();
     }
   });

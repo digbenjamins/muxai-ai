@@ -72,7 +72,11 @@ app.get("/api/logs/stream", (req, res) => {
   res.flushHeaders();
 
   const unsubscribe = onGlobalLog((event) => {
-    res.write(`data: ${JSON.stringify(event)}\n\n`);
+    try {
+      res.write(`data: ${JSON.stringify(event)}\n\n`);
+    } catch {
+      unsubscribe();
+    }
   });
 
   req.on("close", () => unsubscribe());
