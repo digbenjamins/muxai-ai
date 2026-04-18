@@ -48,10 +48,11 @@ Every agent run is recorded in the database as a `HeartbeatRun` with:
 - Status (succeeded, failed, cancelled, timed out)
 - Full log output
 - Result JSON (if the agent produced structured output)
+- Outcome label and custom fields (user-marked after the fact — e.g. Win / Loss / NA plus pnl, note)
 - Timestamps and exit code
 - Session ID (for resume support)
 
-View an agent's runs from its detail page or the **Runs** tab. Each run shows the complete log and, if available, a formatted result card.
+View an agent's runs from its detail page or the **Runs** tab. Each run shows the complete log and, if available, a formatted result card. You can mark a run's outcome from its detail page; trading agents with `reviewDecisions` will see these outcomes on their next run via `get_my_decisions`.
 
 ## Results
 

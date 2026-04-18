@@ -20,6 +20,10 @@ When a lead agent has reporters, muxAI automatically injects two MCP tools and a
   </Card>
 </Columns>
 
+### Decision recall
+
+Agents with `reviewDecisions` enabled (trading templates by default) also get `get_my_decisions`. It returns the agent's recent structured decisions along with any user-marked outcomes (win / loss / custom label, plus free-form fields like pnl or note) and a running win/loss tally. The injected system prompt nudges the agent to reflect on past outcomes before its next decision.
+
 ## When to use which
 
 | Scenario | Tool | Why |
