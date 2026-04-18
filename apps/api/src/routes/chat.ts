@@ -4,6 +4,7 @@ import { prisma } from "../lib/db";
 import { emitRunLog, emitRunDone, emitRunSession, onRunEvent } from "../services/run-events";
 import { INTERNAL_SECRET } from "../services/internal-secret";
 import { CLAUDE_CLI, MUXAI_ROOT, buildMcpConfig } from "../services/claude-spawn";
+import { DEFAULT_MODEL } from "../services/models";
 import { parseStreamJson } from "../services/stream-parser";
 import { trackProcess, stopProcess, untrackProcess } from "../services/process-manager";
 
@@ -75,7 +76,7 @@ chatRoutes.post("/send", async (req, res) => {
       return;
     }
     const config = agent.adapterConfig as Record<string, unknown>;
-    const model = (config.model as string) || "claude-sonnet-4-6";
+    const model = (config.model as string) || DEFAULT_MODEL;
     const systemPrompt = config.promptTemplate as string | undefined;
     cwd = (config.cwd as string) || MUXAI_ROOT;
     const isBuiltin = cwd === MUXAI_ROOT;
@@ -104,7 +105,7 @@ chatRoutes.post("/send", async (req, res) => {
   } else {
     // General chat
     args = [
-      "--model", "claude-sonnet-4-6",
+      "--model", DEFAULT_MODEL,
       "--max-turns", "20",
       "--dangerously-skip-permissions",
       "--output-format", "stream-json",

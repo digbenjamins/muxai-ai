@@ -16,6 +16,8 @@ import { DefaultPromptPanel } from "./default-prompt-panel";
 import { InvokeInfoPanel } from "./invoke-info-panel";
 import { BehaviorInfoPanel } from "./behavior-info-panel";
 import { RightColumn } from "./right-column";
+import { DecisionSummary } from "@/components/decision-summary";
+import { OutcomeBadge } from "@/components/outcome-badge";
 import type { ResultCardConfig } from "@/lib/result-cards";
 
 async function getAgent(id: string): Promise<Agent | null> {
@@ -116,7 +118,7 @@ export default async function AgentDetailPage({ params }: { params: Promise<{ id
             {runs.length === 0 ? (
               <p className="text-sm text-muted-foreground">No runs yet. Invoke this agent to start.</p>
             ) : (
-              <div className="space-y-3">
+              <div className="space-y-2">
                 {agent.status === "running" && runs[0]?.status === "running" && (
                   <Link href={`/agents/${agentId}/runs/${runs[0].id}`} className="flex items-center gap-2 text-xs text-blue-400 hover:text-blue-300 transition-colors py-1">
                     <span className="h-1.5 w-1.5 rounded-full bg-blue-400 animate-pulse shrink-0" />
@@ -126,14 +128,19 @@ export default async function AgentDetailPage({ params }: { params: Promise<{ id
                 {runs.slice(0, 5).map((run) => (
                   <Link key={run.id} href={`/agents/${agentId}/runs/${run.id}`} className="block">
                     <Card className="hover:shadow-sm transition-shadow">
-                      <CardContent className="flex items-center justify-between py-3 px-4">
-                        <div className="flex items-center gap-3">
-                          <RunStatusBadge status={run.status} />
-                          <span className="text-xs text-muted-foreground">{run.invocationSource}</span>
+                      <CardContent className="py-3 px-4">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 min-w-0">
+                            <RunStatusBadge status={run.status} />
+                            {run.resultJson && (
+                              <DecisionSummary resultJson={run.resultJson} cardConfig={config.resultCard as ResultCardConfig | undefined} />
+                            )}
+                            {run.outcome && <OutcomeBadge outcome={run.outcome} fields={run.outcomeFields} />}
+                          </div>
+                          <span className="text-xs text-muted-foreground shrink-0">
+                            {run.startedAt ? new Date(run.startedAt).toLocaleString() : "—"}
+                          </span>
                         </div>
-                        <span className="text-xs text-muted-foreground">
-                          {run.startedAt ? new Date(run.startedAt).toLocaleString() : "—"}
-                        </span>
                       </CardContent>
                     </Card>
                   </Link>

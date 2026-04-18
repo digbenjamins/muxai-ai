@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { API_URL, API_KEY } from "@/lib/utils";
+import { MODELS, DEFAULT_MODEL } from "@/lib/models";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -29,7 +30,7 @@ export default function SandboxPage() {
   const [prompt, setPrompt] = useState("");
   const [systemPrompt, setSystemPrompt] = useState("");
   const [showSystem, setShowSystem] = useState(false);
-  const [model, setModel] = useState("claude-sonnet-4-6");
+  const [model, setModel] = useState<string>(DEFAULT_MODEL);
   const [useMcp, setUseMcp] = useState(true);
   const [running, setRunning] = useState(false);
   const [runId, setRunId] = useState<string | null>(null);
@@ -208,9 +209,9 @@ export default function SandboxPage() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="claude-sonnet-4-6">Claude Sonnet 4.6</SelectItem>
-                  <SelectItem value="claude-opus-4-6">Claude Opus 4.6</SelectItem>
-                  <SelectItem value="claude-haiku-4-5-20251001">Claude Haiku 4.5</SelectItem>
+                  {MODELS.map((m) => (
+                    <SelectItem key={m.id} value={m.id}>{m.label}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>

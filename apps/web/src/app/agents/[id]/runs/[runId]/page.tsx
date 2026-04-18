@@ -7,16 +7,30 @@ import { RunStatusBadge } from "@/components/run-status-badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { LiveLogs } from "@/components/live-logs";
 import { RunResult } from "@/components/run-result";
+import { OutcomePicker } from "@/components/outcome-picker";
 import type { ResultCardConfig } from "@/lib/result-cards";
 
 async function getRun(runId: string): Promise<HeartbeatRun | null> {
   try { return await apiFetch<HeartbeatRun>(`/api/runs/${runId}`); } catch { return null; }
 }
 
+async function getSiblingRuns(agentId: string): Promise<HeartbeatRun[]> {
+  try { return await apiFetch<HeartbeatRun[]>(`/api/agents/${agentId}/runs`); } catch { return []; }
+}
+
 export default async function RunDetailPage({ params }: { params: Promise<{ id: string; runId: string }> }) {
   const { id, runId } = await params;
   const run = await getRun(runId);
   if (!run) notFound();
+
+  const siblings = await getSiblingRuns(id);
+  const pastLabels = Array.from(
+    new Set(
+      siblings
+        .map((r) => r.outcome)
+        .filter((o): o is string => typeof o === "string" && o.trim().length > 0),
+    ),
+  );
 
   const duration =
     run.startedAt && run.finishedAt
@@ -69,6 +83,15 @@ export default async function RunDetailPage({ params }: { params: Promise<{ id: 
 
       {run.resultJson && (
         <RunResult resultJson={run.resultJson} cardConfig={(run.agent?.adapterConfig as Record<string, unknown>)?.resultCard as ResultCardConfig | undefined} />
+      )}
+
+      {run.resultJson && (
+        <OutcomePicker
+          runId={run.id}
+          initialOutcome={run.outcome}
+          initialFields={run.outcomeFields}
+          pastLabels={pastLabels}
+        />
       )}
 
       <Card>

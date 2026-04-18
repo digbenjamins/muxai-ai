@@ -146,6 +146,7 @@ mcpServerRoutes.post("/:id/test", async (req, res) => {
       // Send initialize then tools/list
       child.stdin!.write(JSON.stringify({ jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "2024-11-05", capabilities: {}, clientInfo: { name: "muxai-test", version: "1.0.0" } } }) + "\n");
       child.stdin!.write(JSON.stringify({ jsonrpc: "2.0", id: 2, method: "tools/list", params: {} }) + "\n");
+      child.stdin!.end();
 
       const timeout = setTimeout(() => { child.kill("SIGTERM"); }, 10000);
 

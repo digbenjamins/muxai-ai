@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { MODELS, DEFAULT_MODEL } from "@/lib/models";
 import { Card, CardContent } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Settings2 } from "lucide-react";
@@ -80,7 +81,7 @@ export default function EditAgentPage() {
     role: "general",
     title: "",
     capabilities: "",
-    model: "claude-sonnet-4-6",
+    model: DEFAULT_MODEL as string,
     effort: "none",
     cwd: "",
     disallowedTools: "Read,Write,Edit,Bash,Grep,Glob,Agent",
@@ -162,7 +163,7 @@ export default function EditAgentPage() {
           role: agent.role,
           title: agent.title ?? "",
           capabilities: agent.capabilities ?? "",
-          model: (config.model as string) ?? "claude-sonnet-4-6",
+          model: (config.model as string) ?? DEFAULT_MODEL,
           effort: (config.effort as string) ?? "none",
           cwd: (config.cwd as string) ?? "",
           disallowedTools: system,
@@ -290,9 +291,9 @@ export default function EditAgentPage() {
                 <Select value={form.model} onValueChange={(v) => set("model", v)}>
                   <SelectTrigger id="model"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="claude-sonnet-4-6">Claude Sonnet 4.6</SelectItem>
-                    <SelectItem value="claude-opus-4-6">Claude Opus 4.6</SelectItem>
-                    <SelectItem value="claude-haiku-4-5-20251001">Claude Haiku 4.5</SelectItem>
+                    {MODELS.map((m) => (
+                      <SelectItem key={m.id} value={m.id}>{m.label}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>

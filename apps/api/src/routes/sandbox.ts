@@ -4,12 +4,13 @@ import { emitRunLog, emitRunDone, emitRunSession, onRunEvent } from "../services
 import { CLAUDE_CLI, MUXAI_ROOT, buildMcpConfig } from "../services/claude-spawn";
 import { parseStreamJson } from "../services/stream-parser";
 import { trackProcess, stopProcess, untrackProcess } from "../services/process-manager";
+import { DEFAULT_MODEL } from "../services/models";
 
 export const sandboxRoutes = Router();
 
 // POST /api/sandbox/run
 sandboxRoutes.post("/run", async (req, res) => {
-  const { model = "claude-sonnet-4-6", systemPrompt, prompt, useMcp = true, sessionId } = req.body as {
+  const { model = DEFAULT_MODEL, systemPrompt, prompt, useMcp = true, sessionId } = req.body as {
     model?: string; systemPrompt?: string; prompt: string; useMcp?: boolean; sessionId?: string;
   };
 

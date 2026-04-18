@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrig
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { AGENT_TEMPLATES, SKILL_PLACEHOLDER, type AgentTemplate } from "@/lib/agent-templates";
+import { MODELS, DEFAULT_MODEL } from "@/lib/models";
 import { PlusCircle } from "lucide-react";
 
 interface McpTool {
@@ -96,7 +97,7 @@ export default function NewAgentPage() {
     role: "general",
     title: "",
     capabilities: "",
-    model: "claude-sonnet-4-6",
+    model: DEFAULT_MODEL as string,
     effort: "none",
     cwd: "",
     disallowedTools: "Read,Write,Edit,Bash,Grep,Glob,Agent",
@@ -136,6 +137,7 @@ export default function NewAgentPage() {
     }));
     setUseChrome(template.useChrome ?? false);
     setPersistLogs(template.persistLogs ?? false);
+    setReviewDecisions(template.reviewDecisions ?? false);
     setMcpPreset(template.mcpPreset);
     setSchedulePreset(template.schedulePreset);
     const res = await fetch(`/api/templates/${template.id}`);
@@ -153,7 +155,7 @@ export default function NewAgentPage() {
       role: "general",
       title: "",
       capabilities: "",
-      model: "claude-sonnet-4-6",
+      model: DEFAULT_MODEL,
       effort: "none",
       cwd: "",
       disallowedTools: "Read,Write,Edit,Bash,Grep,Glob,Agent",
@@ -348,9 +350,9 @@ export default function NewAgentPage() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="claude-sonnet-4-6">Claude Sonnet 4.6</SelectItem>
-                    <SelectItem value="claude-opus-4-6">Claude Opus 4.6</SelectItem>
-                    <SelectItem value="claude-haiku-4-5-20251001">Claude Haiku 4.5</SelectItem>
+                    {MODELS.map((m) => (
+                      <SelectItem key={m.id} value={m.id}>{m.label}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>

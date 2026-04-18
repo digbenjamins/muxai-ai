@@ -19,16 +19,34 @@ export const globalLogBus = new RunEventBus();
 globalLogBus.setMaxListeners(100);
 
 // Replay buffer — stores events per runId so late SSE subscribers don't miss early events
-const replayBuffers = new Map<string, RunEvent[]>();
+interface BufferedRun {
+  events: RunEvent[];
+  lastWriteAt: number;
+}
+const replayBuffers = new Map<string, BufferedRun>();
+const ORPHAN_TTL_MS = 10 * 60 * 1000; // drop runs with no "done" after 10m of silence
 
 function bufferEvent(runId: string, event: RunEvent) {
-  if (!replayBuffers.has(runId)) replayBuffers.set(runId, []);
-  replayBuffers.get(runId)!.push(event);
-  // Clean up buffer 30s after run ends
+  let entry = replayBuffers.get(runId);
+  if (!entry) {
+    entry = { events: [], lastWriteAt: Date.now() };
+    replayBuffers.set(runId, entry);
+  }
+  entry.events.push(event);
+  entry.lastWriteAt = Date.now();
+  // Clean up buffer 30s after run ends (happy path)
   if (event.type === "done") {
     setTimeout(() => replayBuffers.delete(runId), 30_000);
   }
 }
+
+// Sweep orphaned buffers (runs that never emitted "done" — crash, kill, restart)
+setInterval(() => {
+  const cutoff = Date.now() - ORPHAN_TTL_MS;
+  for (const [runId, entry] of replayBuffers) {
+    if (entry.lastWriteAt < cutoff) replayBuffers.delete(runId);
+  }
+}, 60_000).unref();
 
 export function emitRunLog(runId: string, data: string) {
   const event = { type: "log", data } satisfies RunEvent;
@@ -50,7 +68,7 @@ export function emitRunSession(runId: string, sessionId: string) {
 
 export function onRunEvent(runId: string, handler: (event: RunEvent) => void) {
   // Replay any buffered events immediately before subscribing to new ones
-  const buffered = replayBuffers.get(runId) ?? [];
+  const buffered = replayBuffers.get(runId)?.events ?? [];
   for (const event of buffered) handler(event);
 
   // If run already finished via replay, no need to subscribe

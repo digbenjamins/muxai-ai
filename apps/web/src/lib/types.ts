@@ -32,5 +32,8 @@ export interface HeartbeatRun {
   errorMsg: string | null;
   logs: string | null;
   resultJson: Record<string, unknown> | null;
+  outcome: string | null;
+  outcomeFields: Record<string, unknown> | null;
+  outcomeAt: string | null;
   createdAt: string;
 }

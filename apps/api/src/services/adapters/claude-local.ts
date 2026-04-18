@@ -2,6 +2,7 @@ import { spawn } from "child_process";
 import type { ChildProcess } from "child_process";
 import { CLAUDE_CLI, MUXAI_ROOT, buildMcpConfig, buildDefaultPrompt } from "../claude-spawn";
 import { INTERNAL_SECRET } from "../internal-secret";
+import { DEFAULT_MODEL } from "../models";
 import type { Adapter, AdapterAgent, SpawnConfig, SpawnCallbacks } from "./types";
 import { registerAdapter } from "./types";
 
@@ -41,7 +42,7 @@ export const claudeLocalAdapter: Adapter = {
     const { promptOverride, runId, isPreview } = opts;
 
     const cwd = (config.cwd as string) || process.cwd();
-    const model = (config.model as string) || "claude-sonnet-4-6";
+    const model = (config.model as string) || DEFAULT_MODEL;
     const maxTurns = (config.maxTurnsPerRun as number) || 10;
     const effort = config.effort as string | undefined;
     const disallowedTools = config.disallowedTools as string | undefined;

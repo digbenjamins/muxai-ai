@@ -76,6 +76,11 @@ model HeartbeatRun {
   usageJson        Json?
   resultJson       Json?
 
+  // Outcome tracking — user-marked result for decisions (for the agent to learn from)
+  outcome          String?  // any label the user picks (win / loss / na / stopped_early / ...)
+  outcomeFields    Json?    // user-defined { key: value } pairs (pnl, note, fees, reason, ...)
+  outcomeAt        DateTime?
+
   // Session persistence across heartbeats
   sessionIdBefore  String?
   sessionIdAfter   String?

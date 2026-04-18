@@ -4,6 +4,7 @@ import { dispatchNotifications, type NotificationChannel, type NotificationEvent
 import { getAdapter } from "./adapters";
 import type { AdapterAgent } from "./adapters";
 import { MUXAI_ROOT, buildMcpConfig, buildDefaultPrompt } from "./claude-spawn";
+import { DEFAULT_MODEL } from "./models";
 import { parseStreamJson, extractAssistantText, extractLastJson } from "./stream-parser";
 import { trackProcess, untrackProcess, stopProcess } from "./process-manager";
 
@@ -61,7 +62,7 @@ export async function buildInvokeInfo(agentId: string) {
     env,
     mcpMode: isBuiltin ? "builtin" : ("global" as "builtin" | "global"),
     mcpConfig,
-    model: (config.model as string) || "claude-sonnet-4-6",
+    model: (config.model as string) || DEFAULT_MODEL,
     maxTurns: (config.maxTurnsPerRun as number) || 10,
     systemPrompt: (config.promptTemplate as string) ?? null,
     defaultPrompt: (config.defaultPrompt as string) || buildDefaultPrompt(agent),

@@ -188,12 +188,41 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         return { content: [{ type: "text", text: `No previous decisions found.` }] };
       }
 
+      const toneOf = (label) => {
+        const l = String(label).toLowerCase();
+        if (/\b(win|won|profit|tp|success|hit|good)\b/.test(l)) return "positive";
+        if (/\b(loss|lost|lose|sl|fail|bad|stopped)\b/.test(l)) return "negative";
+        return "neutral";
+      };
+
       const lines = data.decisions.map((d, i) => {
         const date = d.finishedAt ? new Date(d.finishedAt).toISOString() : "unknown";
-        return `### Decision ${i + 1} (${date})\n\`\`\`json\n${JSON.stringify(d.decision, null, 2)}\n\`\`\``;
+        const parts = [`### Decision ${i + 1} (${date})`];
+        if (d.outcome) {
+          const fieldStr = d.outcomeFields && Object.keys(d.outcomeFields).length > 0
+            ? " — " + Object.entries(d.outcomeFields).map(([k, v]) => `${k}: ${v}`).join(", ")
+            : "";
+          parts.push(`**Outcome:** ${d.outcome}${fieldStr}`);
+        } else {
+          parts.push(`**Outcome:** not yet marked`);
+        }
+        parts.push(`\`\`\`json\n${JSON.stringify(d.decision, null, 2)}\n\`\`\``);
+        return parts.join("\n");
       });
 
-      const header = `## Previous Decisions — ${data.agentName} (${data.agentRole})\n${data.count} most recent:\n`;
+      const tally = data.decisions.reduce(
+        (acc, d) => {
+          if (!d.outcome) return acc;
+          const tone = toneOf(d.outcome);
+          if (tone === "positive") acc.win++;
+          else if (tone === "negative") acc.loss++;
+          return acc;
+        },
+        { win: 0, loss: 0 },
+      );
+      const decided = tally.win + tally.loss;
+      const hitRate = decided > 0 ? ` · ${Math.round((tally.win / decided) * 100)}% hit rate` : "";
+      const header = `## Previous Decisions — ${data.agentName} (${data.agentRole})\n${data.count} most recent · ${tally.win}W / ${tally.loss}L${hitRate}\n\nReflect on past outcomes before deciding. Avoid repeating patterns that lost; lean on patterns that won.\n`;
       return { content: [{ type: "text", text: header + lines.join("\n\n") }] };
     } catch (err) {
       return { content: [{ type: "text", text: `Error fetching decisions: ${err.message}` }] };

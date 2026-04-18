@@ -106,7 +106,12 @@ export async function loadEvmAccount(encryptedKeyHex: string) {
  */
 export async function loadWalletSigner(encryptedKeyBytes: string) {
   const json = await decryptKey(encryptedKeyBytes);
-  const bytes = Uint8Array.from(JSON.parse(json) as number[]);
+  let bytes: Uint8Array;
+  try {
+    bytes = Uint8Array.from(JSON.parse(json) as number[]);
+  } catch (err: any) {
+    throw new Error(`Failed to parse stored wallet key: ${err.message}`);
+  }
   return createKeyPairSignerFromBytes(bytes);
 }
 
@@ -119,7 +124,12 @@ export async function exportWalletKey(encryptedKeyBytes: string): Promise<{
   secretKeyJson: number[];
 }> {
   const json = await decryptKey(encryptedKeyBytes);
-  const bytes = Array.from(JSON.parse(json) as number[]);
+  let bytes: number[];
+  try {
+    bytes = Array.from(JSON.parse(json) as number[]);
+  } catch (err: any) {
+    throw new Error(`Failed to parse stored wallet key: ${err.message}`);
+  }
   return {
     secretKeyBase58: toBase58(new Uint8Array(bytes)),
     secretKeyJson: bytes,

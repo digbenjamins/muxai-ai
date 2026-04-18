@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import { describe, it, expect } from "vitest";
 import { setupTestDb, getTestPrisma } from "./setup-db";
 
@@ -122,6 +123,56 @@ describe("runs integration", () => {
     expect(updated.status).toBe("succeeded");
     expect(updated.exitCode).toBe(0);
     expect(updated.finishedAt).toBeDefined();
+  });
+
+  it("stores and retrieves outcome fields", async () => {
+    const prisma = getTestPrisma();
+
+    const agent = await prisma.agent.create({ data: { name: "Outcome Agent" } });
+
+    const outcomeAt = new Date();
+    const run = await prisma.heartbeatRun.create({
+      data: {
+        agentId: agent.id,
+        status: "succeeded",
+        resultJson: { decision: "LONG", asset: "BTC/USDT" },
+        outcome: "Win",
+        outcomeFields: { pnl: 420.5, note: "hit TP1" },
+        outcomeAt,
+      },
+    });
+
+    const fetched = await prisma.heartbeatRun.findUnique({ where: { id: run.id } });
+    expect(fetched!.outcome).toBe("Win");
+    expect(fetched!.outcomeAt?.toISOString()).toBe(outcomeAt.toISOString());
+    const fields = fetched!.outcomeFields as Record<string, unknown>;
+    expect(fields.pnl).toBe(420.5);
+    expect(fields.note).toBe("hit TP1");
+  });
+
+  it("allows clearing an outcome back to null", async () => {
+    const prisma = getTestPrisma();
+
+    const agent = await prisma.agent.create({ data: { name: "Clear Outcome Agent" } });
+
+    const run = await prisma.heartbeatRun.create({
+      data: {
+        agentId: agent.id,
+        status: "succeeded",
+        outcome: "Loss",
+        outcomeFields: { pnl: -100 },
+        outcomeAt: new Date(),
+      },
+    });
+
+    const cleared = await prisma.heartbeatRun.update({
+      where: { id: run.id },
+      data: { outcome: null, outcomeFields: Prisma.DbNull, outcomeAt: null },
+    });
+
+    expect(cleared.outcome).toBeNull();
+    expect(cleared.outcomeFields).toBeNull();
+    expect(cleared.outcomeAt).toBeNull();
   });
 
   it("stores session IDs for resume support", async () => {

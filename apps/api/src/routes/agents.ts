@@ -147,7 +147,14 @@ agentRoutes.get("/decisions", async (req, res) => {
     where: { agentId: agent.id, NOT: { resultJson: { equals: Prisma.DbNull } } },
     orderBy: { finishedAt: "desc" },
     take: limit,
-    select: { id: true, finishedAt: true, resultJson: true },
+    select: {
+      id: true,
+      finishedAt: true,
+      resultJson: true,
+      outcome: true,
+      outcomeFields: true,
+      outcomeAt: true,
+    },
   });
 
   res.json({
@@ -158,6 +165,9 @@ agentRoutes.get("/decisions", async (req, res) => {
       runId: r.id,
       finishedAt: r.finishedAt,
       decision: r.resultJson,
+      outcome: r.outcome,
+      outcomeFields: r.outcomeFields,
+      outcomeAt: r.outcomeAt,
     })),
   });
 });
@@ -188,12 +198,24 @@ agentRoutes.patch("/:id", async (req, res) => {
   }
 
   // Merge adapterConfig with existing values so the edit form doesn't wipe
-  // fields it doesn't manage (resultCard, notifications, etc.)
+  // fields it doesn't manage (resultCard, notifications, etc.). One level of
+  // recursion is enough for the shapes we store (resultCard, schedule, etc.);
+  // arrays and primitives are replaced wholesale.
   const data = { ...parsed.data };
   if (data.adapterConfig) {
     const existing = await prisma.agent.findUnique({ where: { id: req.params.id }, select: { adapterConfig: true } });
     const existingConfig = (existing?.adapterConfig ?? {}) as Record<string, unknown>;
-    data.adapterConfig = { ...existingConfig, ...data.adapterConfig };
+    const incoming = data.adapterConfig as Record<string, unknown>;
+    const merged: Record<string, unknown> = { ...existingConfig };
+    for (const [k, v] of Object.entries(incoming)) {
+      const prev = merged[k];
+      if (v && typeof v === "object" && !Array.isArray(v) && prev && typeof prev === "object" && !Array.isArray(prev)) {
+        merged[k] = { ...(prev as Record<string, unknown>), ...(v as Record<string, unknown>) };
+      } else {
+        merged[k] = v;
+      }
+    }
+    data.adapterConfig = merged;
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -247,6 +269,10 @@ agentRoutes.post("/:id/invoke", async (req, res) => {
   }
   if (agent.status === "terminated") {
     res.status(400).json({ error: "Cannot invoke a terminated agent" });
+    return;
+  }
+  if (agent.status === "running") {
+    res.status(409).json({ error: "Agent is already running" });
     return;
   }
 
