@@ -19,6 +19,18 @@
     "wallet": {
       "command": "node",
       "args": ["packages/mcp-wallet/index.js"]
+    },
+    "crypto-data": {
+      "command": "node",
+      "args": ["packages/mcp-crypto-data/index.js"]
+    },
+    "crypto-ohlcv": {
+      "command": "node",
+      "args": ["packages/mcp-crypto-ohlcv/index.js"]
+    },
+    "docs": {
+      "command": "node",
+      "args": ["packages/mcp-docs/index.js"]
     }
   }
 }
