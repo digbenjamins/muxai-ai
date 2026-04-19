@@ -36,3 +36,6 @@ pnpm-debug.log*
 # plans
 /plans
 /reference
+
+#cloud
+.claude/settings.local.json
