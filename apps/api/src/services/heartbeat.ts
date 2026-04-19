@@ -87,6 +87,16 @@ export async function invokeAgent(agentId: string, promptOverride?: string) {
     data: { agentId, source: "on_demand", reason: "manual invoke", status: "claimed", claimedAt: new Date() },
   });
 
+  // Resolve --resume session if Active Memory is enabled for this agent
+  const memoryEnabled = Boolean(config.memoryEnabled);
+  let chatSession = memoryEnabled
+    ? await prisma.chatSession.findFirst({ where: { agentId } })
+    : null;
+  if (memoryEnabled && !chatSession) {
+    chatSession = await prisma.chatSession.create({ data: { agentId } });
+  }
+  const resumeSessionId = memoryEnabled ? chatSession?.claudeSessionId ?? undefined : undefined;
+
   const run = await prisma.heartbeatRun.create({
     data: {
       agentId,
@@ -94,6 +104,7 @@ export async function invokeAgent(agentId: string, promptOverride?: string) {
       invocationSource: "on_demand",
       startedAt: new Date(),
       wakeupRequestId: wakeup.id,
+      sessionIdBefore: resumeSessionId ?? null,
     },
   });
 
@@ -122,7 +133,7 @@ export async function invokeAgent(agentId: string, promptOverride?: string) {
   const adapter = getAdapter(agent.adapterType);
   let spawnConfig;
   try {
-    spawnConfig = await adapter.buildSpawnConfig(adapterAgent, { promptOverride, runId: run.id });
+    spawnConfig = await adapter.buildSpawnConfig(adapterAgent, { promptOverride, runId: run.id, resumeSessionId });
   } catch (err: any) {
     const errorMsg = `Failed to build spawn config: ${err.message}`;
     console.error(`[heartbeat] ${errorMsg}`);
@@ -133,6 +144,7 @@ export async function invokeAgent(agentId: string, promptOverride?: string) {
   // Spawn via adapter with callbacks
   const chunks: string[] = [];
   const assistantTextChunks: string[] = [];
+  let sessionIdAfter: string | null = null;
 
   if (persistLogs) emitGlobalLog({ type: "run_start", agentId: agent.id, agentName: agent.name, runId: run.id, ts: Date.now() });
 
@@ -140,7 +152,8 @@ export async function invokeAgent(agentId: string, promptOverride?: string) {
   try {
     child = adapter.spawn(spawnConfig, {
       onStdoutLine(line: string) {
-        const { text } = parseStreamJson(line);
+        const { text, sessionId } = parseStreamJson(line);
+        if (sessionId) sessionIdAfter = sessionId;
         if (!text) return;
         chunks.push(text + "\n");
         emitRunLog(run.id, text + "\n");
@@ -174,9 +187,16 @@ export async function invokeAgent(agentId: string, promptOverride?: string) {
               finishedAt: new Date(),
               logs,
               errorMsg: succeeded ? null : `Process exited with code ${code}`,
+              sessionIdAfter,
               ...(resultJson !== null ? { resultJson: resultJson as any } : {}),
             },
           });
+          if (memoryEnabled && sessionIdAfter && chatSession) {
+            await prisma.chatSession.update({
+              where: { id: chatSession.id },
+              data: { claudeSessionId: sessionIdAfter },
+            });
+          }
         } catch (dbErr: any) {
           console.error(`[heartbeat] DB update failed on close: ${dbErr.message}`);
         }

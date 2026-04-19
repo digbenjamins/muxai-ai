@@ -37,6 +37,8 @@ export const CARD_TYPES: CardDefinition[] = [
       { key: "consensus", label: "Consensus", type: "body", optional: true },
       { key: "invalidation", label: "Invalidation", type: "body", optional: true },
       { key: "watch_for", label: "Watch For", type: "list", optional: true },
+      { key: "thesis_evolution", label: "Thesis Evolution", type: "body", optional: true, description: "Reflection on how this decision relates to prior calls" },
+      { key: "previous_decisions", label: "Previous Decisions", type: "list", optional: true, description: "One-line summaries of recent prior calls (e.g. '2d ago · WAIT · range unresolved')" },
     ],
   },
   {

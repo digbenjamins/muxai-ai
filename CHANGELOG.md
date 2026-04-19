@@ -6,7 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.1.3] - 2026-04-19
+
 ### Added
+
+- Active Memory per-agent toggle (off by default) — opt-in shared Claude session between chat and scheduled runs via `--resume`, with amber warning on enable
+- Memory status endpoints: `GET /api/agents/:id/memory`, batched `GET /api/agents/memory-summary`, and `POST /api/agents/:id/memory/reset`
+- `/agents` list page now shows a summary strip (totals, scheduled, memory-on, drifting count), a memory pill on each card with drift warning past 20 runs, inline dialog-based Reset button, and drift-first sort
+- Per-agent Active Memory panel on agent detail page with status, runs-since-reset, session age, and in-panel reset
+- Collapsible "What does this agent remember?" info panel on agent detail, with side-by-side Off/On comparison, session-flow diagram, quick-reference table, and the prompt-precedence caveat
+- New docs page `core-concepts/memory-and-decisions` covering Active Memory, `reviewDecisions`, session flow, resets, and the underlying schema
+- `ChatSession.lastResetAt` column as a stable counter anchor, bumped on explicit reset and when memory is toggled off→on so re-enabling starts from a clean slate
+- Trade Decision result card gains optional `thesis_evolution` and `previous_decisions` slots; Team Lead SKILL.md updated with the JSON format and a no-fabrication guardrail
+- Dashboard replaces the four stat cards with a single compact status bar.
+- `.claude/settings.json` now registers all eight MCP servers (adds `crypto-data`, `crypto-ohlcv`, `docs`)
 
 ### Fixed
 

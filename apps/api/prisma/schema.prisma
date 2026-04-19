@@ -168,6 +168,7 @@ model ChatSession {
   claudeSessionId String?       // last known Claude --resume session ID
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
+  lastResetAt     DateTime      @default(now()) // bumped on reset; stable anchor for runsSinceReset
   messages        ChatMessage[]
 
   @@map("chat_sessions")

@@ -30,6 +30,7 @@ export interface AgentTemplate {
   useChrome?: boolean;
   persistLogs?: boolean;
   reviewDecisions?: boolean;
+  memoryEnabled?: boolean;
   resultCard?: { type: string; mapping: Record<string, string> };
 }
 
@@ -45,6 +46,7 @@ export const AGENT_TEMPLATES: AgentTemplate[] = [
     resultCard: { type: "trade-decision", mapping: {} },
     persistLogs: true,
     reviewDecisions: true,
+    memoryEnabled: false,
     form: {
       name: "Team Lead",
       role: "ceo",
@@ -65,6 +67,7 @@ export const AGENT_TEMPLATES: AgentTemplate[] = [
     mcpPreset: "builtin",
     schedulePreset: "disabled",
     persistLogs: true,
+    memoryEnabled: false,
     form: {
       name: "News Analyst",
       role: "news-analyst",
@@ -85,6 +88,7 @@ export const AGENT_TEMPLATES: AgentTemplate[] = [
     mcpPreset: "builtin",
     schedulePreset: "disabled",
     persistLogs: true,
+    memoryEnabled: false,
     form: {
       name: "Technical Analyst",
       role: "technical-analyst",
@@ -105,6 +109,7 @@ export const AGENT_TEMPLATES: AgentTemplate[] = [
     schedulePreset: "disabled",
     persistLogs: true,
     useChrome: false,
+    memoryEnabled: false,
     form: {
       name: "Data Analyst",
       role: "analyst",

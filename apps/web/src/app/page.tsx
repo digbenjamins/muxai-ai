@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { PlusCircle, Bot, Activity, Clock, Zap, AlertTriangle, CalendarClock, Play, ChevronRight } from "lucide-react";
+import { PlusCircle, Bot, AlertTriangle, CalendarClock, Play, ChevronRight } from "lucide-react";
 import { apiFetch } from "@/lib/utils";
 import type { Agent, HeartbeatRun } from "@/lib/types";
 import { Button } from "@/components/ui/button";
@@ -57,30 +57,92 @@ function formatDate(): string {
   return new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
 }
 
-// ─── Stat Card ─────────────────────────────────────────────────────────────────
+// ─── Status Bar ────────────────────────────────────────────────────────────────
 
-function StatCard({
-  label, value, sub, icon: Icon, color, pulse,
+function StatCell({
+  label, value, sub, tone,
 }: {
-  label: string; value: string | number; sub?: string;
-  icon: React.ElementType; color: string; pulse?: boolean;
+  label: string; value: number; sub?: string; tone?: "warn";
 }) {
   return (
-    <div className="rounded-xl border border-border bg-card p-5 flex flex-col gap-4">
-      <div className="flex items-center justify-between">
-        <span className="text-xs font-medium text-muted-foreground uppercase tracking-widest">{label}</span>
-        <div className={`flex h-8 w-8 items-center justify-center rounded-lg ${color}`}>
-          <Icon className="h-4 w-4" />
-        </div>
+    <div className="flex-1 flex items-center justify-between gap-3 px-5 py-3">
+      <div className="min-w-0">
+        <p className="text-[10px] text-muted-foreground uppercase tracking-[0.15em] leading-tight">{label}</p>
+        {sub && (
+          <p className={`text-xs mt-0.5 truncate leading-tight ${tone === "warn" ? "text-amber-500" : "text-muted-foreground/80"}`}>
+            {sub}
+          </p>
+        )}
       </div>
-      <div>
-        <div className="flex items-end gap-2">
-          <span className="text-3xl font-bold tracking-tight">{value}</span>
-          {pulse && Number(value) > 0 && (
-            <span className="mb-1 h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-          )}
+      <span className="text-2xl font-semibold tabular-nums tracking-tight shrink-0">{value}</span>
+    </div>
+  );
+}
+
+function StatusBar({
+  active, running, scheduled, runsToday, failedToday, totalAgents, erroredCount, runningNames,
+}: {
+  active: number; running: number; scheduled: number; runsToday: number;
+  failedToday: number; totalAgents: number; erroredCount: number; runningNames: string;
+}) {
+  const hasError = erroredCount > 0;
+  const hasActivity = running > 0;
+  const dotColor = hasError ? "bg-red-500" : hasActivity ? "bg-emerald-500" : "bg-muted-foreground/40";
+  const headline = hasError
+    ? `${erroredCount} agent${erroredCount > 1 ? "s" : ""} in error`
+    : hasActivity
+    ? `${running} running`
+    : "All idle";
+  const subline = hasError
+    ? "needs attention"
+    : hasActivity
+    ? runningNames
+    : "nothing running";
+
+  return (
+    <div className="relative overflow-hidden rounded-xl border border-border bg-card">
+      {hasActivity && !hasError && (
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-px overflow-hidden">
+          <div
+            className="h-full w-1/3 bg-gradient-to-r from-transparent via-emerald-400/80 to-transparent"
+            style={{ animation: "scan 3.2s linear infinite" }}
+          />
         </div>
-        {sub && <p className="text-xs text-muted-foreground mt-1">{sub}</p>}
+      )}
+      <div className="flex flex-col md:flex-row md:items-stretch md:divide-x divide-border">
+        {/* Live state */}
+        <div className="flex items-center gap-3 px-5 py-3 md:min-w-[260px] border-b md:border-b-0 border-border">
+          <span className="relative flex h-2.5 w-2.5 shrink-0">
+            {hasActivity && !hasError && (
+              <span className="absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-60 animate-ping" />
+            )}
+            <span
+              className={`relative inline-flex h-2.5 w-2.5 rounded-full ${dotColor}`}
+              style={hasError ? { animation: "breathe 1.6s ease-in-out infinite" } : undefined}
+            />
+          </span>
+          <div className="min-w-0">
+            <p className="text-sm font-medium leading-tight">{headline}</p>
+            <p className="text-xs text-muted-foreground mt-0.5 truncate leading-tight">{subline}</p>
+          </div>
+        </div>
+
+        <StatCell
+          label="Active"
+          value={active}
+          sub={`${totalAgents} total`}
+        />
+        <StatCell
+          label="Scheduled"
+          value={scheduled}
+          sub={scheduled > 0 ? "on schedule" : "none"}
+        />
+        <StatCell
+          label="Runs today"
+          value={runsToday}
+          sub={failedToday > 0 ? `${failedToday} failed` : runsToday > 0 ? "all clean" : "—"}
+          tone={failedToday > 0 ? "warn" : undefined}
+        />
       </div>
     </div>
   );
@@ -230,38 +292,17 @@ export default async function DashboardPage() {
         </div>
       </div>
 
-      {/* Stat cards */}
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard
-          label="Active Agents"
-          value={active.length}
-          icon={Bot}
-          color="bg-blue-500/10 text-blue-400"
-          sub={`${agents.length} total · ${errored.length > 0 ? `${errored.length} errors` : "no errors"}`}
-        />
-        <StatCard
-          label="Running Now"
-          value={running.length}
-          icon={Activity}
-          color="bg-emerald-500/10 text-emerald-400"
-          sub={running.length > 0 ? running.map((a) => a.name).join(", ") : "Nothing running"}
-          pulse
-        />
-        <StatCard
-          label="Scheduled"
-          value={scheduled.length}
-          icon={Clock}
-          color="bg-violet-500/10 text-violet-400"
-          sub={scheduled.length > 0 ? scheduled.map((a) => a.name).join(", ") : "No scheduled agents"}
-        />
-        <StatCard
-          label="Runs Today"
-          value={runsToday.length}
-          icon={Zap}
-          color="bg-amber-500/10 text-amber-400"
-          sub={failedToday > 0 ? `${failedToday} failed` : "All succeeded"}
-        />
-      </div>
+      {/* Status bar */}
+      <StatusBar
+        active={active.length}
+        running={running.length}
+        scheduled={scheduled.length}
+        runsToday={runsToday.length}
+        failedToday={failedToday}
+        totalAgents={agents.length}
+        erroredCount={errored.length}
+        runningNames={running.length > 0 ? running.map((a) => a.name).join(", ") : ""}
+      />
 
       {/* Latest result */}
       {latestResult?.resultJson && (

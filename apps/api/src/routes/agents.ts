@@ -172,6 +172,43 @@ agentRoutes.get("/decisions", async (req, res) => {
   });
 });
 
+// GET /api/agents/memory-summary — batched memory status for all agents
+agentRoutes.get("/memory-summary", async (_req, res) => {
+  const [agents, chatSessions] = await Promise.all([
+    prisma.agent.findMany({ select: { id: true, adapterConfig: true } }),
+    prisma.chatSession.findMany({ select: { agentId: true, claudeSessionId: true, updatedAt: true, lastResetAt: true } }),
+  ]);
+  const sessionByAgent = new Map(chatSessions.map((s) => [s.agentId, s]));
+
+  const entries = await Promise.all(
+    agents.map(async (agent) => {
+      const enabled = Boolean((agent.adapterConfig as Record<string, unknown>)?.memoryEnabled);
+      const session = sessionByAgent.get(agent.id);
+      let runsSinceReset = 0;
+      if (session?.lastResetAt) {
+        runsSinceReset = await prisma.heartbeatRun.count({
+          where: {
+            agentId: agent.id,
+            sessionIdAfter: { not: null },
+            finishedAt: { gte: session.lastResetAt },
+          },
+        });
+      }
+      return [
+        agent.id,
+        {
+          enabled,
+          hasSession: Boolean(session?.claudeSessionId),
+          sessionUpdatedAt: session?.updatedAt ?? null,
+          runsSinceReset,
+        },
+      ] as const;
+    }),
+  );
+
+  res.json(Object.fromEntries(entries));
+});
+
 // GET /api/agents/:id
 agentRoutes.get("/:id", async (req, res) => {
   const agent = await prisma.agent.findUnique({
@@ -202,10 +239,12 @@ agentRoutes.patch("/:id", async (req, res) => {
   // recursion is enough for the shapes we store (resultCard, schedule, etc.);
   // arrays and primitives are replaced wholesale.
   const data = { ...parsed.data };
+  let memoryTurnedOn = false;
   if (data.adapterConfig) {
     const existing = await prisma.agent.findUnique({ where: { id: req.params.id }, select: { adapterConfig: true } });
     const existingConfig = (existing?.adapterConfig ?? {}) as Record<string, unknown>;
     const incoming = data.adapterConfig as Record<string, unknown>;
+    memoryTurnedOn = !existingConfig.memoryEnabled && incoming.memoryEnabled === true;
     const merged: Record<string, unknown> = { ...existingConfig };
     for (const [k, v] of Object.entries(incoming)) {
       const prev = merged[k];
@@ -220,6 +259,23 @@ agentRoutes.patch("/:id", async (req, res) => {
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const agent = await prisma.agent.update({ where: { id: req.params.id }, data: data as any });
+
+  // Treat turning memory on as a fresh start: upsert ChatSession and reset the anchor.
+  if (memoryTurnedOn) {
+    const existingSession = await prisma.chatSession.findFirst({ where: { agentId: req.params.id } });
+    const now = new Date();
+    if (existingSession) {
+      await prisma.chatSession.update({
+        where: { id: existingSession.id },
+        data: { claudeSessionId: null, lastResetAt: now },
+      });
+    } else {
+      await prisma.chatSession.create({
+        data: { agentId: req.params.id, lastResetAt: now },
+      });
+    }
+  }
+
   syncAgentSchedule(agent.id, agent.runtimeConfig, agent.status);
   res.json(agent);
 });
@@ -479,6 +535,49 @@ agentRoutes.get("/:id/invoke-info", async (req, res) => {
   }
   const info = await buildInvokeInfo(req.params.id);
   res.json(info);
+});
+
+// GET /api/agents/:id/memory — status for the Active Memory feature
+agentRoutes.get("/:id/memory", async (req, res) => {
+  const agent = await prisma.agent.findUnique({ where: { id: req.params.id } });
+  if (!agent) {
+    res.status(404).json({ error: "Agent not found" });
+    return;
+  }
+  const enabled = Boolean((agent.adapterConfig as Record<string, unknown>)?.memoryEnabled);
+  const chatSession = await prisma.chatSession.findFirst({ where: { agentId: req.params.id } });
+
+  let runsSinceReset = 0;
+  if (chatSession?.lastResetAt) {
+    runsSinceReset = await prisma.heartbeatRun.count({
+      where: { agentId: req.params.id, sessionIdAfter: { not: null }, finishedAt: { gte: chatSession.lastResetAt } },
+    });
+  }
+
+  res.json({
+    enabled,
+    hasSession: Boolean(chatSession?.claudeSessionId),
+    claudeSessionId: chatSession?.claudeSessionId ?? null,
+    sessionUpdatedAt: chatSession?.updatedAt ?? null,
+    runsSinceReset,
+  });
+});
+
+// POST /api/agents/:id/memory/reset — clear the shared session ID so next run starts fresh
+agentRoutes.post("/:id/memory/reset", async (req, res) => {
+  const agent = await prisma.agent.findUnique({ where: { id: req.params.id } });
+  if (!agent) {
+    res.status(404).json({ error: "Agent not found" });
+    return;
+  }
+  const chatSession = await prisma.chatSession.findFirst({ where: { agentId: req.params.id } });
+  if (chatSession) {
+    await prisma.chatSession.update({
+      where: { id: chatSession.id },
+      data: { claudeSessionId: null, lastResetAt: new Date() },
+    });
+  }
+  res.status(204).end();
 });
 
 // GET /api/agents/:id/runs

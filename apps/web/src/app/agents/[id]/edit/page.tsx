@@ -74,6 +74,7 @@ export default function EditAgentPage() {
   const [useChrome, setUseChrome] = useState(false);
   const [persistLogs, setPersistLogs] = useState(false);
   const [reviewDecisions, setReviewDecisions] = useState(false);
+  const [memoryEnabled, setMemoryEnabled] = useState(false);
   const [disabledMcpTools, setDisabledMcpTools] = useState<Set<string>>(new Set());
 
   const [form, setForm] = useState({
@@ -158,6 +159,7 @@ export default function EditAgentPage() {
         setUseChrome(Boolean(config.useChrome));
         setPersistLogs(Boolean(config.persistLogs));
         setReviewDecisions(Boolean(config.reviewDecisions));
+        setMemoryEnabled(Boolean(config.memoryEnabled));
         setForm({
           name: agent.name,
           role: agent.role,
@@ -207,6 +209,7 @@ export default function EditAgentPage() {
             useChrome,
             persistLogs,
             reviewDecisions,
+            memoryEnabled,
             maxTurnsPerRun: Number(form.maxTurnsPerRun),
           },
           runtimeConfig: cronValue
@@ -335,6 +338,23 @@ export default function EditAgentPage() {
                   <p className="text-xs text-muted-foreground">Agent reviews its own past decisions before making a new one</p>
                 </div>
                 <Switch id="reviewDecisions" checked={reviewDecisions} onCheckedChange={setReviewDecisions} />
+              </div>
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <Label htmlFor="memoryEnabled">Active Memory</Label>
+                    <p className="text-xs text-muted-foreground">Share one Claude session across chat + scheduled runs</p>
+                  </div>
+                  <Switch id="memoryEnabled" checked={memoryEnabled} onCheckedChange={setMemoryEnabled} />
+                </div>
+                {memoryEnabled && (
+                  <div className="rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-amber-600 dark:text-amber-400">
+                    <p className="font-medium">Runs will no longer be clean.</p>
+                    <p className="text-amber-600/80 dark:text-amber-400/80 mt-0.5">
+                      Every run carries the full chat + prior-run history. Context grows unbounded — reset memory periodically to keep runs fast and predictable.
+                    </p>
+                  </div>
+                )}
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="prompt">SKILL.md <span className="text-muted-foreground">(optional)</span></Label>

@@ -61,6 +61,8 @@ At the end of your response, **always output exactly one JSON block** in the for
 - `confidence`: must be exactly `"high"`, `"medium"`, or `"low"`
 - When `decision` is `"WAIT"`, set `entry`, `take_profit`, `stop_loss`, and `risk_reward` to `null`
 - `asset` and `timeframe` must match what you provided to the specialists
+- `previous_decisions`: if you have access to prior calls for this asset (from memory, context, or earlier runs in this session), list up to 5 most recent as one-liners in the format `"<when> · <decision> · <one-line reason>"`. Omit the field if you have no prior context — never fabricate past calls.
+- `thesis_evolution`: one sentence reflecting on how this decision relates to the prior calls (e.g. confirming, reversing, tightening a thesis). Omit if there are no prior decisions.
 
 ```json
 {
@@ -74,8 +76,13 @@ At the end of your response, **always output exactly one JSON block** in the for
   "risk_reward": "1:2.5",
   "consensus": "One sentence on what the analysts agree on.",
   "invalidation": "What would invalidate this decision.",
-  "watch_for": ["Condition 1", "Condition 2"]
+  "watch_for": ["Condition 1", "Condition 2"],
+  "previous_decisions": [
+    "2d ago · WAIT · range unresolved, waiting on 4h close",
+    "5d ago · LONG · broke range high on volume, took partials at TP1"
+  ],
+  "thesis_evolution": "Confirming the LONG thesis from 5d ago — pullback held the breakout level that the Technical Analyst flagged as invalidation."
 }
 ```
 
-Do not add extra fields or omit required fields. Output only one JSON block.
+Do not add extra fields or omit required fields (other than the optional `previous_decisions` / `thesis_evolution` when you genuinely have no prior context). Output only one JSON block.

@@ -39,7 +39,7 @@ export const claudeLocalAdapter: Adapter = {
 
   async buildSpawnConfig(agent: AdapterAgent, opts): Promise<SpawnConfig> {
     const config = agent.adapterConfig;
-    const { promptOverride, runId, isPreview } = opts;
+    const { promptOverride, runId, isPreview, resumeSessionId } = opts;
 
     const cwd = (config.cwd as string) || process.cwd();
     const model = (config.model as string) || DEFAULT_MODEL;
@@ -72,6 +72,7 @@ Before producing a new result, call \`mcp__orchestrator__get_my_decisions\` to r
     }
 
     const args = [
+      ...(resumeSessionId ? ["--resume", isPreview ? "<session-id>" : resumeSessionId] : []),
       "--model", model,
       "--max-turns", String(maxTurns),
       "--dangerously-skip-permissions",

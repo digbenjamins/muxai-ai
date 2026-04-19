@@ -1,13 +1,18 @@
 import Link from "next/link";
-import { Bot, PlusCircle, CalendarClock, AlertTriangle } from "lucide-react";
+import { Bot, PlusCircle, CalendarClock, AlertTriangle, Brain } from "lucide-react";
 import { apiFetch } from "@/lib/utils";
 import type { Agent } from "@/lib/types";
 import { AgentStatusBadge } from "@/components/agent-status-badge";
 import { Button } from "@/components/ui/button";
 import { InvokeButton } from "./[id]/invoke-button";
+import { MemoryPill, MemoryResetButton, type MemoryStatus } from "./memory-pill";
 
 async function getAgents(): Promise<Agent[]> {
   try { return await apiFetch<Agent[]>("/api/agents"); } catch { return []; }
+}
+
+async function getMemorySummary(): Promise<Record<string, MemoryStatus>> {
+  try { return await apiFetch<Record<string, MemoryStatus>>("/api/agents/memory-summary"); } catch { return {}; }
 }
 
 function shortModel(model: string): string {
@@ -30,7 +35,7 @@ function roleColor(role: string): string {
   return ROLE_COLORS[role] ?? "bg-slate-500/15 text-slate-400 border-slate-500/20";
 }
 
-function AgentCard({ agent }: { agent: Agent }) {
+function AgentCard({ agent, memory }: { agent: Agent; memory?: MemoryStatus }) {
   const config = agent.adapterConfig as Record<string, unknown>;
   const rt = agent.runtimeConfig as Record<string, unknown>;
   const hb = rt?.heartbeat as { enabled?: boolean; cron?: string } | undefined;
@@ -63,6 +68,7 @@ function AgentCard({ agent }: { agent: Agent }) {
               Scheduled
             </span>
           )}
+          {memory && <MemoryPill status={memory} />}
           <span className="text-xs text-muted-foreground ml-auto">{runCount} run{runCount !== 1 ? "s" : ""}</span>
         </div>
       </Link>
@@ -75,6 +81,7 @@ function AgentCard({ agent }: { agent: Agent }) {
         <Button asChild variant="ghost" size="sm" className="text-muted-foreground text-xs h-7">
           <Link href={`/agents/${agent.id}/runs`}>Runs</Link>
         </Button>
+        {memory && <MemoryResetButton agentId={agent.id} agentName={agent.name} status={memory} />}
         {agent.status === "running" && (
           <Button asChild variant="ghost" size="sm" className="text-blue-400 text-xs h-7 ml-auto">
             <Link href={`/agents/${agent.id}/runs`}>
@@ -88,11 +95,26 @@ function AgentCard({ agent }: { agent: Agent }) {
   );
 }
 
+function driftRank(memory?: MemoryStatus): number {
+  if (!memory?.enabled) return 0;
+  if (!memory.hasSession) return 1;
+  if (memory.runsSinceReset > 20) return 3;
+  return 2;
+}
+
 export default async function AgentsPage() {
-  const agents = await getAgents();
+  const [agents, memoryMap] = await Promise.all([getAgents(), getMemorySummary()]);
 
   const active = agents.filter((a) => a.status !== "terminated");
   const errored = agents.filter((a) => a.status === "error");
+  const scheduled = agents.filter((a) => {
+    const rt = a.runtimeConfig as Record<string, unknown>;
+    return (rt?.heartbeat as { enabled?: boolean } | undefined)?.enabled;
+  });
+  const memoryOn = agents.filter((a) => memoryMap[a.id]?.enabled);
+  const drifting = memoryOn.filter((a) => (memoryMap[a.id]?.runsSinceReset ?? 0) > 20);
+
+  const sortedAgents = [...agents].sort((a, b) => driftRank(memoryMap[b.id]) - driftRank(memoryMap[a.id]));
 
   return (
     <div className="space-y-6">
@@ -123,6 +145,33 @@ export default async function AgentsPage() {
         </Button>
       </div>
 
+      {/* Summary strip */}
+      {agents.length > 0 && (
+        <div className="flex items-center gap-6 rounded-lg border border-border bg-card px-4 py-2.5 text-xs">
+          <span className="flex items-center gap-2 text-muted-foreground">
+            <span className="text-foreground font-medium">{agents.length}</span>
+            agent{agents.length !== 1 ? "s" : ""}
+          </span>
+          <span className="flex items-center gap-1.5 text-muted-foreground">
+            <CalendarClock className="h-3.5 w-3.5 text-violet-400" />
+            <span className="text-foreground font-medium">{scheduled.length}</span>
+            scheduled
+          </span>
+          <span className="flex items-center gap-1.5 text-muted-foreground">
+            <Brain className="h-3.5 w-3.5 text-violet-400" />
+            <span className="text-foreground font-medium">{memoryOn.length}</span>
+            with memory on
+          </span>
+          {drifting.length > 0 && (
+            <span className="flex items-center gap-1.5 text-amber-400 ml-auto">
+              <AlertTriangle className="h-3.5 w-3.5" />
+              <span className="font-medium">{drifting.length}</span>
+              drifting — consider resetting
+            </span>
+          )}
+        </div>
+      )}
+
       {agents.length === 0 ? (
         <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border py-24 text-center">
           <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted mb-4">
@@ -139,7 +188,7 @@ export default async function AgentsPage() {
         </div>
       ) : (
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          {agents.map((a) => <AgentCard key={a.id} agent={a} />)}
+          {sortedAgents.map((a) => <AgentCard key={a.id} agent={a} memory={memoryMap[a.id]} />)}
         </div>
       )}
     </div>

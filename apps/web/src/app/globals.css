@@ -57,3 +57,13 @@
   * { @apply border-border; }
   body { @apply bg-background text-foreground; }
 }
+
+@keyframes scan {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+@keyframes breathe {
+  0%, 100% { opacity: 0.55; }
+  50% { opacity: 1; }
+}

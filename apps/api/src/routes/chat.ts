@@ -36,7 +36,7 @@ chatRoutes.get("/session", async (req, res) => {
 chatRoutes.post("/session/:id/reset", async (req, res) => {
   const { id } = req.params;
   await prisma.chatMessage.deleteMany({ where: { sessionId: id } });
-  await prisma.chatSession.update({ where: { id }, data: { claudeSessionId: null } });
+  await prisma.chatSession.update({ where: { id }, data: { claudeSessionId: null, lastResetAt: new Date() } });
   res.status(204).end();
 });
 

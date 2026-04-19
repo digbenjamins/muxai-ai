@@ -15,6 +15,8 @@ import { TeamPanel } from "./team-panel";
 import { DefaultPromptPanel } from "./default-prompt-panel";
 import { InvokeInfoPanel } from "./invoke-info-panel";
 import { BehaviorInfoPanel } from "./behavior-info-panel";
+import { MemoryInfoPanel } from "./memory-info-panel";
+import { MemoryPanel } from "./memory-panel";
 import { RightColumn } from "./right-column";
 import { DecisionSummary } from "@/components/decision-summary";
 import { OutcomeBadge } from "@/components/outcome-badge";
@@ -106,6 +108,7 @@ export default async function AgentDetailPage({ params }: { params: Promise<{ id
           </div>
 
           <DefaultPromptPanel agentId={agentId} adapterConfig={config} />
+          <MemoryPanel agentId={agentId} />
           {agent.reports.length > 0 && <TeamPanel reporters={agent.reports} />}
 
           <div>
@@ -161,6 +164,7 @@ export default async function AgentDetailPage({ params }: { params: Promise<{ id
       </div>
 
       <InvokeInfoPanel agentId={agentId} />
+      <MemoryInfoPanel />
       <BehaviorInfoPanel />
     </div>
   );

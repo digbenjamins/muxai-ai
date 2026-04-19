@@ -39,6 +39,7 @@ export interface Adapter {
     promptOverride?: string;
     runId?: string;
     isPreview?: boolean;
+    resumeSessionId?: string;
   }): Promise<SpawnConfig>;
 
   /** Spawn a process and wire up callbacks. Returns the child process. */

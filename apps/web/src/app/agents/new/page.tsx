@@ -74,6 +74,7 @@ export default function NewAgentPage() {
   const [useChrome, setUseChrome] = useState(false);
   const [persistLogs, setPersistLogs] = useState(true);
   const [reviewDecisions, setReviewDecisions] = useState(false);
+  const [memoryEnabled, setMemoryEnabled] = useState(false);
   const [disabledMcpTools, setDisabledMcpTools] = useState<Set<string>>(new Set());
 
   useEffect(() => {
@@ -138,6 +139,7 @@ export default function NewAgentPage() {
     setUseChrome(template.useChrome ?? false);
     setPersistLogs(template.persistLogs ?? false);
     setReviewDecisions(template.reviewDecisions ?? false);
+    setMemoryEnabled(template.memoryEnabled ?? false);
     setMcpPreset(template.mcpPreset);
     setSchedulePreset(template.schedulePreset);
     const res = await fetch(`/api/templates/${template.id}`);
@@ -166,6 +168,7 @@ export default function NewAgentPage() {
     });
     setUseChrome(false);
     setPersistLogs(false);
+    setMemoryEnabled(false);
     setMcpPreset("builtin");
     set("cwd", mcpRootPath);
     setSchedulePreset("disabled");
@@ -206,6 +209,7 @@ export default function NewAgentPage() {
             useChrome: useChrome || undefined,
             persistLogs: persistLogs || undefined,
             reviewDecisions: reviewDecisions || undefined,
+            memoryEnabled: memoryEnabled || undefined,
             maxTurnsPerRun: Number(form.maxTurnsPerRun),
             ...(selectedTemplate ? (() => {
               const tpl = AGENT_TEMPLATES.find((t) => t.id === selectedTemplate);
@@ -400,6 +404,23 @@ export default function NewAgentPage() {
                   <p className="text-xs text-muted-foreground">Agent reviews its own past decisions before making a new one</p>
                 </div>
                 <Switch id="reviewDecisions" checked={reviewDecisions} onCheckedChange={setReviewDecisions} />
+              </div>
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <Label htmlFor="memoryEnabled">Active Memory</Label>
+                    <p className="text-xs text-muted-foreground">Share one Claude session across chat + scheduled runs</p>
+                  </div>
+                  <Switch id="memoryEnabled" checked={memoryEnabled} onCheckedChange={setMemoryEnabled} />
+                </div>
+                {memoryEnabled && (
+                  <div className="rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-amber-600 dark:text-amber-400">
+                    <p className="font-medium">Runs will no longer be clean.</p>
+                    <p className="text-amber-600/80 dark:text-amber-400/80 mt-0.5">
+                      Every run carries the full chat + prior-run history. Context grows unbounded — reset memory periodically to keep runs fast and predictable.
+                    </p>
+                  </div>
+                )}
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="prompt">
