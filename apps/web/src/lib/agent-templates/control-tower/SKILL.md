@@ -33,6 +33,20 @@ does it.
   `task` to override the agent's default prompt.
 - **`mcp__control-tower__get_run_status`** — inspect any run by id (status,
   result, logs). Useful when the user asks about a past run.
+- **`mcp__control-tower__get_agent_decisions`** — pull an agent's recent
+  structured decisions and any user-marked outcomes. Use this for "how has
+  BTC Analyst been doing lately?" or "what did the team lead decide last week?".
+
+## What you can do
+
+- **`mcp__control-tower__stop_agent`** — kill the active run on a stuck or
+  runaway agent.
+- **`mcp__control-tower__pause_agent`** / **`resume_agent`** — pause a
+  scheduled agent so the scheduler skips it, or bring a paused/errored agent
+  back to idle.
+- **`mcp__control-tower__reset_agent_memory`** — clear the shared Claude
+  session for an agent with Active Memory. Only do this on explicit request or
+  when the user says the agent is clearly confused.
 
 ## How to behave
 

@@ -10,7 +10,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 - Control Tower singleton admin agent (`role = "control_tower"`): dedicated `/control-tower` page, sidebar entry, one-click setup, and a red-ringed chat integration with `?agent=<id>` preselect from the Open chat button
 - `POST/GET /api/control-tower` routes to manage the singleton; reserved role enforced on `POST /api/agents` and filtered out of `/api/agents` list + memory summary
-- `packages/mcp-control-tower` MCP server with admin tools (`list_agents`, `invoke_agent`, `get_run_status`); wired into `config/mcp-registry.json` and `.claude/settings.json`
+- `packages/mcp-control-tower` MCP server with admin tools (`list_agents`, `invoke_agent`, `get_run_status`, `get_agent_decisions`, `stop_agent`, `pause_agent`, `resume_agent`, `reset_agent_memory`); wired into `config/mcp-registry.json` and `.claude/settings.json`
 - Claude-local adapter now excludes `mcp-control-tower` from every non-admin spawn and excludes `mcp-wallet` from the Control Tower
 - Edit page Configure link from `/control-tower`, with Control-Tower-specific guardrails: Name field locked, Role / Title / Reports To hidden, MCP Servers preset hidden (always built-in), and `mcp-control-tower` tools locked against being disabled
 - API guardrail on `PATCH /api/agents/:id` strips `name`, `role`, `title`, `reportsToId`, and any `mcp__control-tower__*` disallow entries for Control Tower agents

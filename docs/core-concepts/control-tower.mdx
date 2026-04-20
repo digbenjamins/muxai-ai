@@ -30,13 +30,18 @@ The exclusion lives in `apps/api/src/services/adapters/claude-local.ts` and is e
 
 ## Admin tools
 
-`packages/mcp-control-tower` exposes three tools that only the Control Tower can call:
+`packages/mcp-control-tower` exposes these tools that only the Control Tower can call:
 
 | Tool | Purpose |
 |------|---------|
 | `list_agents` | Enumerate every agent (excluding itself), with id, role, status, run count, and schedule. |
 | `invoke_agent` | Invoke an agent by name, role, or id and wait for the run to complete. Optional `task` overrides the default prompt. |
 | `get_run_status` | Fetch status, result, and logs for any run by id. |
+| `get_agent_decisions` | Pull the recent structured decisions and user-marked outcomes for one agent. |
+| `stop_agent` | Kill the active run on a stuck or runaway agent. |
+| `pause_agent` | Pause a scheduled agent so the scheduler skips it. |
+| `resume_agent` | Bring a paused or errored agent back to idle. |
+| `reset_agent_memory` | Clear the shared Claude session for an agent with Active Memory. |
 
 Regular agents never see these tools — `claude-local.ts` excludes `mcp-control-tower` from every non-admin spawn.
 
