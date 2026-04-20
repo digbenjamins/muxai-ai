@@ -47,6 +47,7 @@ export default async function AgentDetailPage({ params }: { params: Promise<{ id
   const runtime = agent.runtimeConfig as Record<string, unknown>;
   const heartbeat = runtime?.heartbeat as { enabled?: boolean; cron?: string } | undefined;
   const agentId = agent.id;
+  const isControlTower = agent.role === "control_tower";
 
   return (
     <div className="space-y-6">
@@ -108,7 +109,7 @@ export default async function AgentDetailPage({ params }: { params: Promise<{ id
           </div>
 
           <DefaultPromptPanel agentId={agentId} adapterConfig={config} />
-          <MemoryPanel agentId={agentId} />
+          {!isControlTower && <MemoryPanel agentId={agentId} />}
           {agent.reports.length > 0 && <TeamPanel reporters={agent.reports} />}
 
           <div>
@@ -160,11 +161,12 @@ export default async function AgentDetailPage({ params }: { params: Promise<{ id
           promptTemplate={config.promptTemplate ? String(config.promptTemplate) : undefined}
           initialCardConfig={config.resultCard as ResultCardConfig | undefined}
           initialNotifyOn={(config.notifyOn ?? []) as string[]}
+          isControlTower={isControlTower}
         />
       </div>
 
       <InvokeInfoPanel agentId={agentId} />
-      <MemoryInfoPanel />
+      {!isControlTower && <MemoryInfoPanel />}
       <BehaviorInfoPanel />
     </div>
   );

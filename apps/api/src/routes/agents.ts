@@ -277,7 +277,20 @@ agentRoutes.patch("/:id", async (req, res) => {
         .filter((s) => s && !s.startsWith("mcp__control-tower__"));
       merged.disallowedTools = kept.join(",");
     }
+    // Guardrail: Active Memory is always on for the Control Tower.
+    if (isControlTower) {
+      merged.memoryEnabled = true;
+      merged.reviewDecisions = false;
+    }
     data.adapterConfig = merged;
+  }
+
+  // Guardrail: the Control Tower is chat-only — no scheduled runs.
+  if (isControlTower && data.runtimeConfig) {
+    const rc = data.runtimeConfig as Record<string, unknown>;
+    if (rc.heartbeat && typeof rc.heartbeat === "object") {
+      (rc.heartbeat as Record<string, unknown>).enabled = false;
+    }
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

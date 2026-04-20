@@ -350,22 +350,33 @@ export default function EditAgentPage() {
                 </div>
                 <Switch id="persistLogs" checked={persistLogs} onCheckedChange={setPersistLogs} />
               </div>
-              <div className="flex items-center justify-between">
-                <div>
-                  <Label htmlFor="reviewDecisions">Review Previous Decisions</Label>
-                  <p className="text-xs text-muted-foreground">Agent reviews its own past decisions before making a new one</p>
+              {!isControlTower && (
+                <div className="flex items-center justify-between">
+                  <div>
+                    <Label htmlFor="reviewDecisions">Review Previous Decisions</Label>
+                    <p className="text-xs text-muted-foreground">Agent reviews its own past decisions before making a new one</p>
+                  </div>
+                  <Switch id="reviewDecisions" checked={reviewDecisions} onCheckedChange={setReviewDecisions} />
                 </div>
-                <Switch id="reviewDecisions" checked={reviewDecisions} onCheckedChange={setReviewDecisions} />
-              </div>
+              )}
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
                   <div>
                     <Label htmlFor="memoryEnabled">Active Memory</Label>
-                    <p className="text-xs text-muted-foreground">Share one Claude session across chat + scheduled runs</p>
+                    <p className="text-xs text-muted-foreground">
+                      {isControlTower
+                        ? "Always on for the Control Tower — chat continuity is its whole purpose."
+                        : "Share one Claude session across chat + scheduled runs"}
+                    </p>
                   </div>
-                  <Switch id="memoryEnabled" checked={memoryEnabled} onCheckedChange={setMemoryEnabled} />
+                  <Switch
+                    id="memoryEnabled"
+                    checked={memoryEnabled}
+                    onCheckedChange={setMemoryEnabled}
+                    disabled={isControlTower}
+                  />
                 </div>
-                {memoryEnabled && (
+                {memoryEnabled && !isControlTower && (
                   <div className="rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-amber-600 dark:text-amber-400">
                     <p className="font-medium">Runs will no longer be clean.</p>
                     <p className="text-amber-600/80 dark:text-amber-400/80 mt-0.5">
@@ -528,28 +539,32 @@ export default function EditAgentPage() {
               )}
             </CardContent>
 
-            <StepHeader step={4} title="Schedule" description="Run this agent automatically on a timer" />
-            <CardContent className="pt-4 space-y-3">
-              <div className="flex items-center gap-4">
-                <div className="w-full">
-                  <Select value={schedulePreset} onValueChange={handleSchedulePreset}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {SCHEDULE_PRESETS.map((p) => <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-              {schedulePreset === "custom" && (
-                <Input value={form.customCron} onChange={(e) => set("customCron", e.target.value)} placeholder="*/30 * * * *" />
-              )}
-              {schedulePreset !== "disabled" && schedulePreset !== "custom" && (
-                <p className="text-xs text-muted-foreground font-mono">{schedulePreset}</p>
-              )}
-              {schedulePreset !== "disabled" && (
-                <p className="text-xs text-muted-foreground">The agent will be invoked automatically on this schedule. It skips a run if already running.</p>
-              )}
-            </CardContent>
+            {!isControlTower && (
+              <>
+                <StepHeader step={4} title="Schedule" description="Run this agent automatically on a timer" />
+                <CardContent className="pt-4 space-y-3">
+                  <div className="flex items-center gap-4">
+                    <div className="w-full">
+                      <Select value={schedulePreset} onValueChange={handleSchedulePreset}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          {SCHEDULE_PRESETS.map((p) => <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  {schedulePreset === "custom" && (
+                    <Input value={form.customCron} onChange={(e) => set("customCron", e.target.value)} placeholder="*/30 * * * *" />
+                  )}
+                  {schedulePreset !== "disabled" && schedulePreset !== "custom" && (
+                    <p className="text-xs text-muted-foreground font-mono">{schedulePreset}</p>
+                  )}
+                  {schedulePreset !== "disabled" && (
+                    <p className="text-xs text-muted-foreground">The agent will be invoked automatically on this schedule. It skips a run if already running.</p>
+                  )}
+                </CardContent>
+              </>
+            )}
           </Card>
         </div>
 

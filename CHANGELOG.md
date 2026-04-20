@@ -15,6 +15,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Edit page Configure link from `/control-tower`, with Control-Tower-specific guardrails: Name field locked, Role / Title / Reports To hidden, MCP Servers preset hidden (always built-in), and `mcp-control-tower` tools locked against being disabled
 - API guardrail on `PATCH /api/agents/:id` strips `name`, `role`, `title`, `reportsToId`, and any `mcp__control-tower__*` disallow entries for Control Tower agents
 - Agent edit / new pages hide admin-only MCP servers from the tool grid (`control-tower` on non-admin pages; `wallet` and `orchestrator` on the Control Tower edit page) to match the server-side exclusion in `claude-local.ts`
+- `/control-tower` page redesign — ops-deck aesthetic with callsign header (`TWR-01`), status LED, red-tinted grid overlay, monospace readouts (Status / Model / Messages / Uptime), and an emerald-lit "Comms channels" grid (In-app chat online; Telegram / Discord / WhatsApp on standby)
+- Live **Sector Scan** radar on `/control-tower` — polls `/api/agents` every 5s and renders one blip per agent, color-coded by status (running pulses amber near center, idle emerald on outer rings, error red, paused/terminated grey); blip position is deterministic per agent id
+- "Details" button on `/control-tower` linking to `/agents/<id>`, next to Configure and Open chat
+- Control Tower details page hides panels that don't apply to a chat-only agent: Active Memory panel, Memory info panel, Result Card panel, Notifications panel
+- Control Tower edit page hides "Review Previous Decisions" toggle and the entire Schedule step; Active Memory switch is locked on with an explanatory caption
+- API guardrails on `PATCH /api/agents/:id` enforce Control Tower invariants server-side: `memoryEnabled: true`, `reviewDecisions: false`, and any incoming `runtimeConfig.heartbeat.enabled` is forced to `false`
 - Docs: `core-concepts/control-tower` covering the singleton model, MCP access matrix, and admin tools
 
 ### Fixed

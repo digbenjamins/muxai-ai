@@ -13,9 +13,10 @@ interface Props {
   promptTemplate?: string;
   initialCardConfig?: ResultCardConfig;
   initialNotifyOn: string[];
+  isControlTower?: boolean;
 }
 
-export function RightColumn({ agentId, adapterConfig, promptTemplate, initialCardConfig, initialNotifyOn }: Props) {
+export function RightColumn({ agentId, adapterConfig, promptTemplate, initialCardConfig, initialNotifyOn, isControlTower }: Props) {
   const [promptOpen, setPromptOpen] = useState(false);
 
   return (
@@ -47,16 +48,20 @@ export function RightColumn({ agentId, adapterConfig, promptTemplate, initialCar
         </Card>
       )}
 
-      <ResultCardPanel
-        agentId={agentId}
-        adapterConfig={adapterConfig}
-        initialCardConfig={initialCardConfig}
-      />
-      <NotificationsPanel
-        agentId={agentId}
-        adapterConfig={adapterConfig}
-        initialNotifyOn={initialNotifyOn as any}
-      />
+      {!isControlTower && (
+        <ResultCardPanel
+          agentId={agentId}
+          adapterConfig={adapterConfig}
+          initialCardConfig={initialCardConfig}
+        />
+      )}
+      {!isControlTower && (
+        <NotificationsPanel
+          agentId={agentId}
+          adapterConfig={adapterConfig}
+          initialNotifyOn={initialNotifyOn as any}
+        />
+      )}
     </div>
   );
 }
