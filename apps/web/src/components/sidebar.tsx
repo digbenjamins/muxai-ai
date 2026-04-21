@@ -3,7 +3,21 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useTheme } from "next-themes";
 import { useState, useEffect } from "react";
-import { LayoutDashboard, PlusCircle, Plug, Radio, FlaskConical, Users, UsersRound, FileJson, Settings, Handshake, MessageSquare, Rocket, Radar } from "lucide-react";
+import {
+  LayoutDashboard,
+  PlusCircle,
+  Plug,
+  Radio,
+  FlaskConical,
+  Users,
+  UsersRound,
+  FileJson,
+  Settings,
+  Handshake,
+  MessageSquare,
+  Rocket,
+  Radar,
+} from "lucide-react";
 import Image from "next/image";
 import { cn } from "@/lib/utils";
 
@@ -155,7 +169,7 @@ export function Sidebar() {
 
       {/* Footer */}
       <div className="px-5 py-4 border-t border-border">
-        <p className="text-xs text-muted-foreground/50 font-mono">v2026.1.3</p>
+        <p className="text-xs text-muted-foreground/50 font-mono">v2026.1.4</p>
       </div>
     </aside>
   );

@@ -1,10 +1,11 @@
 import Link from "next/link";
-import { Radar, MessageSquare, Send, MessageCircle, Phone, Settings2, Bot, Radio } from "lucide-react";
+import { Radar, MessageSquare, Settings2, Bot, Radio } from "lucide-react";
 import { apiFetch } from "@/lib/utils";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { SetupButton } from "./setup-button";
 import { RadarScope } from "./radar-scope";
+import { TelegramTile } from "./telegram-tile";
 
 interface ControlTowerAgent {
   id: string;
@@ -169,20 +170,13 @@ function LoadedState({ agent, messageCount }: { agent: ControlTowerAgent; messag
 
       {/* Comms channels */}
       <div>
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-2">
-            <Radio className="h-4 w-4 text-muted-foreground" />
-            <h2 className="font-mono text-xs uppercase tracking-[0.2em] text-muted-foreground">Comms channels</h2>
-          </div>
-          <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
-            1 / 4 online
-          </span>
+        <div className="flex items-center gap-2 mb-3">
+          <Radio className="h-4 w-4 text-muted-foreground" />
+          <h2 className="font-mono text-xs uppercase tracking-[0.2em] text-muted-foreground">Comms channels</h2>
         </div>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <ChannelTile icon={MessageSquare} label="In-app chat" state="online" description="Live browser session — currently active." />
-          <ChannelTile icon={Send} label="Telegram" state="standby" description="Bot webhook — reach your agents from your phone." />
-          <ChannelTile icon={MessageCircle} label="Discord" state="standby" description="Server bot — ping an agent from any channel." />
-          <ChannelTile icon={Phone} label="WhatsApp" state="standby" description="Business API — same agent, SMS-style chat." />
+          <TelegramTile />
         </div>
       </div>
     </div>

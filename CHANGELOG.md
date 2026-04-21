@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [Unreleased]
+## [0.1.4] - 2026-04-21
 
 ### Added
 
@@ -16,16 +16,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - API guardrail on `PATCH /api/agents/:id` strips `name`, `role`, `title`, `reportsToId`, and any `mcp__control-tower__*` disallow entries for Control Tower agents
 - Agent edit / new pages hide admin-only MCP servers from the tool grid (`control-tower` on non-admin pages; `wallet` and `orchestrator` on the Control Tower edit page) to match the server-side exclusion in `claude-local.ts`
 - `/control-tower` page redesign — ops-deck aesthetic with callsign header (`TWR-01`), status LED, red-tinted grid overlay, monospace readouts (Status / Model / Messages / Uptime), and an emerald-lit "Comms channels" grid (In-app chat online; Telegram / Discord / WhatsApp on standby)
+- Telegram gateway (polling, no webhook) at `apps/api/src/services/gateways/telegram.ts` — single-owner pairing via `/start`, owner commands `/whoami` and `/reset`, typing indicator during relay, and config colocated on the agent at `adapterConfig.gateways.telegram`
+- `/control-tower` Telegram setup wizard: paste bot token → validate via `getMe` → poll for `/start` every 2s → connected; Cancel mid-pairing stops the poller to avoid leaks
+- `apps/api/src/services/chat-runner.ts` — reusable chat-turn helper shared by the web `/chat` route and the Telegram gateway; default `maxMs` raised from 180s to 900s to cover `invoke_agent` chains
+- Control Tower SKILL.md rule: acknowledge before slow work (`invoke_agent`, `get_agent_decisions`) so remote users see a preamble instead of silence
 - Live **Sector Scan** radar on `/control-tower` — polls `/api/agents` every 5s and renders one blip per agent, color-coded by status (running pulses amber near center, idle emerald on outer rings, error red, paused/terminated grey); blip position is deterministic per agent id
 - "Details" button on `/control-tower` linking to `/agents/<id>`, next to Configure and Open chat
 - Control Tower details page hides panels that don't apply to a chat-only agent: Active Memory panel, Memory info panel, Result Card panel, Notifications panel
 - Control Tower edit page hides "Review Previous Decisions" toggle and the entire Schedule step; Active Memory switch is locked on with an explanatory caption
 - API guardrails on `PATCH /api/agents/:id` enforce Control Tower invariants server-side: `memoryEnabled: true`, `reviewDecisions: false`, and any incoming `runtimeConfig.heartbeat.enabled` is forced to `false`
 - Docs: `core-concepts/control-tower` covering the singleton model, MCP access matrix, and admin tools
-
-### Fixed
-
-- `/chat` page now reacts to `?agent=<id>` URL changes during client-side navigation via `useSearchParams` (previous initial-state approach required a hard refresh when arriving from the Open chat button)
 
 ## [0.1.3] - 2026-04-19
 
@@ -41,8 +41,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Trade Decision result card gains optional `thesis_evolution` and `previous_decisions` slots; Team Lead SKILL.md updated with the JSON format and a no-fabrication guardrail
 - Dashboard replaces the four stat cards with a single compact status bar.
 - `.claude/settings.json` now registers all eight MCP servers (adds `crypto-data`, `crypto-ohlcv`, `docs`)
-
-### Fixed
 
 ## [0.1.2] - 2026-04-18
 

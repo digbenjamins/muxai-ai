@@ -14,6 +14,7 @@ import { chatRoutes } from "./routes/chat";
 import { settingsRoutes } from "./routes/settings";
 import { teamRoutes } from "./routes/teams";
 import { initScheduler } from "./services/scheduler";
+import { initTelegramGatewayOnBoot } from "./services/gateways/telegram";
 import "./services/adapters"; // Register all adapter types (claude_local, etc.)
 import { onGlobalLog } from "./services/run-events";
 import { apiKeyAuth } from "./middleware/auth";
@@ -112,6 +113,7 @@ async function main() {
     await seedDefaultSettings();
     await seedDefaultRoles();
     await initScheduler();
+    await initTelegramGatewayOnBoot();
   });
 }
 
