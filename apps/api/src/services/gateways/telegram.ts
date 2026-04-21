@@ -1,5 +1,5 @@
-import { prisma } from "../lib/db";
-import { runChatTurn } from "./chat-runner";
+import { prisma } from "../../lib/db";
+import { runChatTurn } from "../chat-runner";
 
 const CONTROL_TOWER_ROLE = "control_tower";
 const TELEGRAM_API = "https://api.telegram.org";
