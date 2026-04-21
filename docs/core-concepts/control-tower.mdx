@@ -50,3 +50,30 @@ Regular agents never see these tools — `claude-local.ts` excludes `mcp-control
 The `/chat` page fetches the Control Tower separately from the regular agent list and merges it into the agent dropdown. When selected, it's marked with a red ring, a Radar icon, and a red dot. The `?agent=<id>` query param on `/chat` preselects it — the **Open chat** button on `/control-tower` uses this.
 
 Because chat doesn't create `HeartbeatRun` records, the Control Tower card shows **Messages** (count of `ChatMessage` rows on its session) instead of **Total runs**.
+
+## Messaging gateways
+
+The `/control-tower` page shows a **Comms channels** grid: in-app chat is always online; Telegram, Discord, and WhatsApp are progressively being added. Gateways share a single `ChatSession` with the web `/chat` page via the reusable `services/chat-runner.ts` helper, so resetting or continuing a conversation is consistent across channels.
+
+### Telegram
+
+The Telegram gateway runs in-process using long polling — no webhook, no public URL required. Config is colocated with the agent at `adapterConfig.gateways.telegram`.
+
+**Pairing flow (on `/control-tower`):**
+
+1. Click the Telegram tile → paste a bot token from [@BotFather](https://t.me/BotFather).
+2. The server calls Telegram's `getMe` to validate and resolve the bot username.
+3. Open the bot in Telegram and send `/start`. The **first** chat to say `/start` claims ownership (`ownerChatId`). Any other chat gets an `Unauthorized` reply.
+4. Cancel mid-pairing calls `DELETE` on the gateway route so the poller is stopped and the token isn't left polling in the background.
+
+**Owner commands:**
+
+| Command | Effect |
+|---------|--------|
+| `/start` | First time: pair. Afterwards: brief confirmation that the gateway is live. |
+| `/whoami` | Prints your Telegram chat id and username. |
+| `/reset` | Deletes the shared `ChatSession` messages and clears the Claude session — same as a web-side reset. |
+
+Any other message is relayed through `runChatTurn`, which is the same helper the web `/chat` route uses. The gateway streams a typing indicator every 4 seconds during a turn and sends assistant text as it arrives. Because admin tool chains (`invoke_agent`, `get_agent_decisions`) can exceed 3 minutes, the chat runner's default `maxMs` is 900 seconds; the SKILL.md also instructs the Control Tower to acknowledge before starting slow work so remote users see a preamble instead of silence.
+
+The poller is started lazily on boot via `initTelegramGatewayOnBoot` if a token is saved, and restarted on successful pairing. Source: `apps/api/src/services/gateways/telegram.ts`.
