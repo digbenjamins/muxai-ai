@@ -36,6 +36,7 @@ pnpm-debug.log*
 # plans
 /plans
 /reference
+/solana-program
 
 #cloud
 .claude/settings.local.json
