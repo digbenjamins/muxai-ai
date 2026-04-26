@@ -1,0 +1,11 @@
+target/
+.anchor/
+node_modules/
+test-ledger/
+.DS_Store
+*.log
+
+# never commit any wallet / deploy / upgrade-authority keypairs
+deploy-keys/mainnet-*.json
+*-keypair.json
+id.json
