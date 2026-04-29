@@ -1,10 +1,13 @@
 import { prisma } from "../../lib/db";
 import { runChatTurn } from "../chat-runner";
+import { reportTick, removeEntry } from "../scheduler-registry";
 
 const CONTROL_TOWER_ROLE = "control_tower";
 const TELEGRAM_API = "https://api.telegram.org";
 const POLL_TIMEOUT_S = 30;
 const BACKOFF_MS = 5000;
+
+const telegramId = (agentId: string) => `telegram:${agentId}`;
 
 export interface TelegramGatewayConfig {
   token: string;
@@ -21,6 +24,8 @@ interface PollerState {
   offset: number;
   running: boolean;
   abortController: AbortController;
+  msgsHandled: number;
+  ownerUsername?: string;
 }
 
 let activePoller: PollerState | null = null;
@@ -69,15 +74,40 @@ export async function stopPoller(): Promise<void> {
   if (!activePoller) return;
   activePoller.running = false;
   try { activePoller.abortController.abort(); } catch { /* ignore */ }
+  removeEntry(telegramId(activePoller.agentId));
   activePoller = null;
 }
 
 export async function startPoller(agentId: string, token: string): Promise<void> {
   await stopPoller();
-  const state: PollerState = { token, agentId, offset: 0, running: true, abortController: new AbortController() };
+  const agent = await prisma.agent.findUnique({ where: { id: agentId }, select: { name: true, adapterConfig: true } });
+  const config = (agent?.adapterConfig ?? {}) as Record<string, unknown>;
+  const gateways = (config.gateways ?? {}) as Record<string, unknown>;
+  const telegram = (gateways.telegram ?? {}) as TelegramGatewayConfig;
+  const state: PollerState = {
+    token,
+    agentId,
+    offset: 0,
+    running: true,
+    abortController: new AbortController(),
+    msgsHandled: 0,
+    ownerUsername: telegram.ownerUsername,
+  };
   activePoller = state;
+  reportTick(telegramId(agentId), {
+    kind: "telegram",
+    label: `Telegram — ${agent?.name ?? "Control Tower"}`,
+    schedule: "polling",
+    status: "idle",
+    meta: {
+      ownerUsername: telegram.ownerUsername,
+      paired: Boolean(telegram.ownerChatId),
+      msgsHandled: 0,
+    },
+  });
   pollLoop(state).catch((err) => {
     console.error("[telegram] poll loop crashed:", err);
+    reportTick(telegramId(agentId), { status: "error", lastError: err instanceof Error ? err.message : String(err) });
   });
 }
 
@@ -86,12 +116,15 @@ async function pollLoop(state: PollerState): Promise<void> {
     try {
       const url = `${TELEGRAM_API}/bot${state.token}/getUpdates?offset=${state.offset}&timeout=${POLL_TIMEOUT_S}`;
       const res = await fetch(url, { signal: state.abortController.signal });
+      reportTick(telegramId(state.agentId), { status: "idle", lastTickAt: new Date(), lastError: undefined });
       if (!res.ok) {
         if (res.status === 401) {
           console.error("[telegram] token unauthorized, stopping poller");
+          reportTick(telegramId(state.agentId), { status: "error", lastError: "token unauthorized" });
           await stopPoller();
           return;
         }
+        reportTick(telegramId(state.agentId), { status: "error", lastError: `HTTP ${res.status}` });
         await sleep(BACKOFF_MS);
         continue;
       }
@@ -102,11 +135,23 @@ async function pollLoop(state: PollerState): Promise<void> {
       }
       for (const update of body.result) {
         state.offset = update.update_id + 1;
-        try { await handleUpdate(state, update); } catch (err) { console.error("[telegram] handleUpdate:", err); }
+        try {
+          reportTick(telegramId(state.agentId), { status: "running" });
+          await handleUpdate(state, update);
+          state.msgsHandled++;
+          reportTick(telegramId(state.agentId), {
+            status: "idle",
+            meta: { ownerUsername: state.ownerUsername, paired: true, msgsHandled: state.msgsHandled },
+          });
+        } catch (err) {
+          console.error("[telegram] handleUpdate:", err);
+          reportTick(telegramId(state.agentId), { status: "error", lastError: err instanceof Error ? err.message : String(err) });
+        }
       }
     } catch (err) {
       if (err instanceof Error && err.name === "AbortError") return;
       console.error("[telegram] poll error:", err instanceof Error ? err.message : err);
+      reportTick(telegramId(state.agentId), { status: "error", lastError: err instanceof Error ? err.message : String(err) });
       await sleep(BACKOFF_MS);
     }
   }

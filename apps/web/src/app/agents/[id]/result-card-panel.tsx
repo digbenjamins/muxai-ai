@@ -7,8 +7,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { CARD_TYPES, getCardDefinition, type ResultCardConfig, type CardSlot } from "@/lib/result-cards";
+import { CARD_TYPES, getCardDefinition, type ResultCardConfig, type CardSlot, type AutoResolveConfig, AUTO_RESOLVE_DEFAULTS } from "@/lib/result-cards";
 import { ResultCard } from "@/components/result-card";
+import { Switch } from "@/components/ui/switch";
 
 // ─── Preview data + instruction generator ────────────────────────────────────
 
@@ -59,6 +60,9 @@ interface Props {
 export function ResultCardPanel({ agentId, adapterConfig, initialCardConfig }: Props) {
   const [cardType, setCardType] = useState(initialCardConfig?.type ?? "none");
   const [mapping, setMapping] = useState<Record<string, string>>(initialCardConfig?.mapping ?? {});
+  const [autoResolve, setAutoResolve] = useState<AutoResolveConfig>(
+    initialCardConfig?.autoResolve ?? { ...AUTO_RESOLVE_DEFAULTS },
+  );
   const [open, setOpen] = useState(false);
   const [mapOpen, setMapOpen] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -70,6 +74,9 @@ export function ResultCardPanel({ agentId, adapterConfig, initialCardConfig }: P
     setMapping({});
     setMapOpen(false);
     setSaved(false);
+    if (v === "trade-decision" && !initialCardConfig?.autoResolve) {
+      setAutoResolve({ ...AUTO_RESOLVE_DEFAULTS });
+    }
   }
 
   async function handleSave() {
@@ -77,7 +84,11 @@ export function ResultCardPanel({ agentId, adapterConfig, initialCardConfig }: P
     setSaved(false);
     try {
       const resultCard = cardType !== "none"
-        ? { type: cardType, mapping: Object.fromEntries(Object.entries(mapping).filter(([, v]) => v.trim())) }
+        ? {
+            type: cardType,
+            mapping: Object.fromEntries(Object.entries(mapping).filter(([, v]) => v.trim())),
+            ...(cardType === "trade-decision" ? { autoResolve } : {}),
+          }
         : undefined;
       await apiFetch(`/api/agents/${agentId}`, {
         method: "PATCH",
@@ -130,6 +141,55 @@ export function ResultCardPanel({ agentId, adapterConfig, initialCardConfig }: P
         {/* Card preview */}
         {def && (
           <ResultCard config={previewConfig} data={previewData} />
+        )}
+
+        {/* Auto-resolve config — trade-decision only */}
+        {cardType === "trade-decision" && (
+          <div className="space-y-2 rounded border border-border p-3">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-medium">Auto-resolve outcomes</p>
+                <p className="text-xs text-muted-foreground">Resolve Win/Loss against exchange candles after each decision. No user marking required.</p>
+              </div>
+              <Switch
+                checked={autoResolve.enabled !== false}
+                onCheckedChange={(v) => { setAutoResolve((c) => ({ ...c, enabled: v })); setSaved(false); }}
+              />
+            </div>
+            {autoResolve.enabled !== false && (
+              <div className="grid grid-cols-3 gap-2 pt-1">
+                <div className="space-y-1">
+                  <Label className="text-xs">Exchange</Label>
+                  <Input
+                    className="h-7 text-xs"
+                    value={autoResolve.exchange ?? AUTO_RESOLVE_DEFAULTS.exchange}
+                    onChange={(e) => { setAutoResolve((c) => ({ ...c, exchange: e.target.value })); setSaved(false); }}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Expire after (bars)</Label>
+                  <Input
+                    className="h-7 text-xs"
+                    type="number"
+                    min={1}
+                    value={autoResolve.expireBars ?? AUTO_RESOLVE_DEFAULTS.expireBars}
+                    onChange={(e) => { setAutoResolve((c) => ({ ...c, expireBars: Number(e.target.value) || AUTO_RESOLVE_DEFAULTS.expireBars })); setSaved(false); }}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Fill tolerance (%)</Label>
+                  <Input
+                    className="h-7 text-xs"
+                    type="number"
+                    step="0.05"
+                    min={0}
+                    value={autoResolve.fillTolerancePct ?? AUTO_RESOLVE_DEFAULTS.fillTolerancePct}
+                    onChange={(e) => { setAutoResolve((c) => ({ ...c, fillTolerancePct: Number(e.target.value) })); setSaved(false); }}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
         )}
 
         {/* Field mapping (toggled) */}

@@ -85,12 +85,15 @@ export default async function RunDetailPage({ params }: { params: Promise<{ id: 
         <RunResult resultJson={run.resultJson} cardConfig={(run.agent?.adapterConfig as Record<string, unknown>)?.resultCard as ResultCardConfig | undefined} />
       )}
 
+      {run.resultJson && <AutoResolveStatus run={run} />}
+
       {run.resultJson && (
         <OutcomePicker
           runId={run.id}
           initialOutcome={run.outcome}
           initialFields={run.outcomeFields}
           pastLabels={pastLabels}
+          autoResolveActive={isAutoResolveActive(run)}
         />
       )}
 
@@ -116,4 +119,67 @@ function Row({ label, value }: { label: string; value: string }) {
       <span className="text-right">{value}</span>
     </div>
   );
+}
+
+function isAutoResolveActive(run: HeartbeatRun): boolean {
+  const adapter = (run.agent?.adapterConfig ?? {}) as Record<string, unknown>;
+  const card = adapter.resultCard as { type?: string; autoResolve?: { enabled?: boolean } } | undefined;
+  if (!card || card.type !== "trade-decision") return false;
+  return card.autoResolve?.enabled !== false;
+}
+
+function AutoResolveStatus({ run }: { run: HeartbeatRun }) {
+  const fields = (run.outcomeFields ?? {}) as Record<string, unknown>;
+  const source = typeof fields.source === "string" ? fields.source : null;
+  const status = run.resolutionStatus;
+  const meta = (run.resolutionMeta ?? {}) as Record<string, unknown>;
+
+  if (!status && source !== "auto") return null;
+
+  if (status === "active") {
+    const enteredAt = typeof meta.enteredAt === "number" ? new Date(meta.enteredAt).toLocaleString() : null;
+    return (
+      <Card className="border-amber-500/30 bg-amber-500/5">
+        <CardContent className="p-3 text-sm flex items-center gap-3">
+          <span className="inline-block h-2 w-2 rounded-full bg-amber-400 animate-pulse" />
+          <span className="font-medium">Active</span>
+          <span className="text-muted-foreground">{enteredAt ? `entered ${enteredAt}` : "watching market"} · awaiting TP/SL</span>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (status === "pending") {
+    return (
+      <Card className="border-slate-500/30 bg-slate-500/5">
+        <CardContent className="p-3 text-sm flex items-center gap-3">
+          <span className="inline-block h-2 w-2 rounded-full bg-slate-400" />
+          <span className="font-medium">Pending</span>
+          <span className="text-muted-foreground">waiting for entry price</span>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (source === "auto" && (status === "resolved" || status === "expired")) {
+    const r = typeof fields.r_multiple === "number" ? fields.r_multiple : null;
+    const exit = typeof fields.exit_price === "number" ? fields.exit_price : null;
+    const reason = typeof meta.reason === "string" ? meta.reason : null;
+    const reasonText = reason === "tp_hit" ? "TP hit" : reason === "sl_hit" ? "SL hit" : reason === "same_bar_collision" ? "same-bar collision (conservative loss)" : reason === "no_fill_expired" ? "expired without fill" : reason === "no_resolution_expired" ? "expired before resolution" : reason;
+    const tone = run.outcome === "Win" ? "border-emerald-500/30 bg-emerald-500/5" : run.outcome === "Loss" ? "border-red-500/30 bg-red-500/5" : "border-slate-500/30 bg-slate-500/5";
+    const dot = run.outcome === "Win" ? "bg-emerald-400" : run.outcome === "Loss" ? "bg-red-400" : "bg-slate-400";
+    return (
+      <Card className={tone}>
+        <CardContent className="p-3 text-sm flex items-center gap-3 flex-wrap">
+          <span className={`inline-block h-2 w-2 rounded-full ${dot}`} />
+          <span className="font-medium">Auto · {run.outcome}</span>
+          {r !== null && <span className="text-muted-foreground">{r >= 0 ? "+" : ""}{r}R</span>}
+          {exit !== null && <span className="text-muted-foreground">exit @ {exit}</span>}
+          {reasonText && <span className="text-muted-foreground">· {reasonText}</span>}
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return null;
 }

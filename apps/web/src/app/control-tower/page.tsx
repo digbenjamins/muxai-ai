@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { SetupButton } from "./setup-button";
 import { RadarScope } from "./radar-scope";
 import { TelegramTile } from "./telegram-tile";
+import { SchedulersPanel } from "./schedulers-panel";
 
 interface ControlTowerAgent {
   id: string;
@@ -179,6 +180,8 @@ function LoadedState({ agent, messageCount }: { agent: ControlTowerAgent; messag
           <TelegramTile />
         </div>
       </div>
+
+      <SchedulersPanel />
     </div>
   );
 }

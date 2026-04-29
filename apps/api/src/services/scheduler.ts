@@ -1,11 +1,14 @@
 import cron from "node-cron";
 import { prisma } from "../lib/db";
 import { invokeAgent } from "./heartbeat";
+import { reportTick, removeEntry } from "./scheduler-registry";
 
 type ScheduledTask = cron.ScheduledTask;
 
 // Active cron jobs keyed by agentId
 const jobs = new Map<string, ScheduledTask>();
+
+const heartbeatId = (agentId: string) => `heartbeat:${agentId}`;
 
 export function getHeartbeatConfig(runtimeConfig: unknown): { enabled: boolean; cron: string } | null {
   if (!runtimeConfig || typeof runtimeConfig !== "object") return null;
@@ -16,7 +19,7 @@ export function getHeartbeatConfig(runtimeConfig: unknown): { enabled: boolean; 
   return { enabled: Boolean(enabled), cron: cronExpr };
 }
 
-function scheduleAgent(agentId: string, cronExpr: string) {
+async function scheduleAgent(agentId: string, cronExpr: string) {
   // Cancel existing job if any
   unscheduleAgent(agentId);
 
@@ -25,22 +28,33 @@ function scheduleAgent(agentId: string, cronExpr: string) {
     return;
   }
 
+  const agent = await prisma.agent.findUnique({ where: { id: agentId }, select: { name: true } });
+  const label = `Heartbeat — ${agent?.name ?? agentId.slice(0, 8)}`;
+
   const task = cron.schedule(cronExpr, async () => {
     console.log(`[scheduler] Triggering scheduled heartbeat for agent ${agentId}`);
+    reportTick(heartbeatId(agentId), { status: "running", lastTickAt: new Date() });
     try {
-      const agent = await prisma.agent.findUnique({ where: { id: agentId } });
-      if (!agent || agent.status === "terminated" || agent.status === "paused") return;
-      if (agent.status === "running") {
+      const a = await prisma.agent.findUnique({ where: { id: agentId } });
+      if (!a || a.status === "terminated" || a.status === "paused") {
+        reportTick(heartbeatId(agentId), { status: "idle" });
+        return;
+      }
+      if (a.status === "running") {
         console.log(`[scheduler] Agent ${agentId} already running, skipping`);
+        reportTick(heartbeatId(agentId), { status: "idle", meta: { lastSkipReason: "already_running" } });
         return;
       }
       await invokeAgent(agentId);
+      reportTick(heartbeatId(agentId), { status: "idle", lastError: undefined });
     } catch (err) {
       console.error(`[scheduler] Failed to invoke agent ${agentId}:`, err);
+      reportTick(heartbeatId(agentId), { status: "error", lastError: err instanceof Error ? err.message : String(err) });
     }
   });
 
   jobs.set(agentId, task);
+  reportTick(heartbeatId(agentId), { kind: "heartbeat", label, schedule: cronExpr, status: "idle" });
   console.log(`[scheduler] Scheduled agent ${agentId} with cron: ${cronExpr}`);
 }
 
@@ -49,19 +63,20 @@ function unscheduleAgent(agentId: string) {
   if (existing) {
     existing.stop();
     jobs.delete(agentId);
+    removeEntry(heartbeatId(agentId));
     console.log(`[scheduler] Unscheduled agent ${agentId}`);
   }
 }
 
 /** Call this when an agent's runtimeConfig or status changes. */
-export function syncAgentSchedule(agentId: string, runtimeConfig: unknown, status?: string) {
+export async function syncAgentSchedule(agentId: string, runtimeConfig: unknown, status?: string) {
   if (status === "paused" || status === "terminated") {
     unscheduleAgent(agentId);
     return;
   }
   const heartbeat = getHeartbeatConfig(runtimeConfig);
   if (heartbeat?.enabled) {
-    scheduleAgent(agentId, heartbeat.cron);
+    await scheduleAgent(agentId, heartbeat.cron);
   } else {
     unscheduleAgent(agentId);
   }
@@ -78,7 +93,7 @@ export async function initScheduler() {
   for (const agent of agents) {
     const heartbeat = getHeartbeatConfig(agent.runtimeConfig);
     if (heartbeat?.enabled) {
-      scheduleAgent(agent.id, heartbeat.cron);
+      await scheduleAgent(agent.id, heartbeat.cron);
       count++;
     }
   }

@@ -35,5 +35,8 @@ export interface HeartbeatRun {
   outcome: string | null;
   outcomeFields: Record<string, unknown> | null;
   outcomeAt: string | null;
+  resolutionStatus: "pending" | "active" | "resolved" | "expired" | null;
+  resolutionCheckedAt: string | null;
+  resolutionMeta: Record<string, unknown> | null;
   createdAt: string;
 }

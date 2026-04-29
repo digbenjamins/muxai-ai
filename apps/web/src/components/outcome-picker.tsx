@@ -44,11 +44,13 @@ export function OutcomePicker({
   initialOutcome,
   initialFields,
   pastLabels,
+  autoResolveActive,
 }: {
   runId: string;
   initialOutcome: string | null;
   initialFields: Record<string, unknown> | null;
   pastLabels?: string[];
+  autoResolveActive?: boolean;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -119,6 +121,11 @@ export function OutcomePicker({
         <p className="text-xs text-muted-foreground">
           How did this decision play out? Pick a label (or write your own) and add any context the agent should remember.
         </p>
+        {autoResolveActive && (
+          <p className="text-xs text-amber-400/90 mt-1.5">
+            Auto-resolve is on for this agent — the trade resolver will set Win/Loss/NA against exchange candles automatically. Anything you set here overrides the auto result.
+          </p>
+        )}
       </CardHeader>
       <CardContent className="space-y-4">
         {/* Presets */}

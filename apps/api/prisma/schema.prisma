@@ -76,10 +76,16 @@ model HeartbeatRun {
   usageJson        Json?
   resultJson       Json?
 
-  // Outcome tracking — user-marked result for decisions (for the agent to learn from)
-  outcome          String?  // any label the user picks (win / loss / na / stopped_early / ...)
-  outcomeFields    Json?    // user-defined { key: value } pairs (pnl, note, fees, reason, ...)
+  // Outcome tracking — final result for decisions (for the agent to learn from).
+  // Source distinguished by outcomeFields.source: "auto" | "manual" | "manual_override"
+  outcome          String?  // any label (win / loss / na / stopped_early / ...)
+  outcomeFields    Json?    // free-form key/value pairs (pnl, note, fees, reason, source, r_multiple, ...)
   outcomeAt        DateTime?
+
+  // Auto-resolution state for trade decisions
+  resolutionStatus    String?   // null | "pending" | "active" | "resolved" | "expired"
+  resolutionCheckedAt DateTime?
+  resolutionMeta      Json?     // { enteredAt, exitPrice, barsUsed, reason, ... }
 
   // Session persistence across heartbeats
   sessionIdBefore  String?

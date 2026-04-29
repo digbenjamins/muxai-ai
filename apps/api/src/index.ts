@@ -13,8 +13,10 @@ import { contractorRoutes } from "./routes/contractors";
 import { chatRoutes } from "./routes/chat";
 import { settingsRoutes } from "./routes/settings";
 import { teamRoutes } from "./routes/teams";
+import { schedulerRoutes } from "./routes/schedulers";
 import { initScheduler } from "./services/scheduler";
 import { initTelegramGatewayOnBoot } from "./services/gateways/telegram";
+import { initTradeResolver } from "./services/trade-resolver-tick";
 import "./services/adapters"; // Register all adapter types (claude_local, etc.)
 import { onGlobalLog } from "./services/run-events";
 import { apiKeyAuth } from "./middleware/auth";
@@ -67,6 +69,7 @@ app.use("/api/contractors", contractorRoutes);
 app.use("/api/chat", chatRoutes);
 app.use("/api/settings", settingsRoutes);
 app.use("/api/teams", teamRoutes);
+app.use("/api/schedulers", schedulerRoutes);
 
 // GET /api/logs/stream — global SSE stream for all agent activity
 app.get("/api/logs/stream", (req, res) => {
@@ -114,6 +117,7 @@ async function main() {
     await seedDefaultRoles();
     await initScheduler();
     await initTelegramGatewayOnBoot();
+    initTradeResolver();
   });
 }
 
