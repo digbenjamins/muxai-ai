@@ -1,4 +1,5 @@
 import { execSync } from "child_process";
+import fs from "fs";
 import path from "path";
 
 const EMBEDDED_URL = "postgresql://muxai:muxai@localhost:5433/muxai";
@@ -12,6 +13,9 @@ export function isEmbedded(): boolean {
 export async function startDatabase(): Promise<void> {
   if (!isEmbedded()) {
     console.log("[db] Using external PostgreSQL:", process.env.DATABASE_URL?.replace(/:\/\/.*@/, "://<credentials>@"));
+    // muxAI is self-hosted — the user owns this DB and the schema is internal
+    // to muxAI. Push schema on startup so new models appear without manual steps.
+    pushSchema();
     return;
   }
 
@@ -60,16 +64,39 @@ export async function startDatabase(): Promise<void> {
   pushSchema();
 }
 
+// Walk up from __dirname until we find a directory containing prisma/schema.prisma.
+// In dev (tsx) __dirname is apps/api/src/services → ../../ works.
+// In prod (compiled) __dirname is apps/api/dist/services → ../../ lands in dist/
+// which has no prisma folder, so the previous resolver silently failed.
+function findApiRoot(): string {
+  let dir = __dirname;
+  for (let i = 0; i < 6; i++) {
+    if (fs.existsSync(path.join(dir, "prisma", "schema.prisma"))) return dir;
+    const parent = path.dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  throw new Error(`[db] Could not locate prisma/schema.prisma starting from ${__dirname}`);
+}
+
 export function pushSchema(): void {
   console.log("[db] Pushing Prisma schema...");
-  const apiRoot = path.resolve(__dirname, "../../");
+  let apiRoot: string;
+  try {
+    apiRoot = findApiRoot();
+  } catch (err) {
+    console.error(err instanceof Error ? err.message : err);
+    return;
+  }
   try {
     execSync("npx prisma db push", {
       cwd: apiRoot,
       stdio: "inherit",
       env: { ...process.env },
     });
-  } catch {
-    // db:push may already be up to date — not fatal
+    console.log("[db] Schema push complete");
+  } catch (err) {
+    // Log loudly — silent failures here mean tables for new models won't exist.
+    console.error("[db] Schema push failed:", err instanceof Error ? err.message : err);
   }
 }

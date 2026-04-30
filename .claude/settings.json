@@ -35,6 +35,10 @@
     "control-tower": {
       "command": "node",
       "args": ["packages/mcp-control-tower/index.js"]
+    },
+    "events": {
+      "command": "node",
+      "args": ["packages/mcp-events/index.js"]
     }
   }
 }

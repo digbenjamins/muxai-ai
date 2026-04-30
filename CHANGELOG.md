@@ -4,6 +4,23 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.1.6] - 2026-04-30
+
+### Added
+
+- Events MCP (`packages/mcp-events/`) with `get_upcoming_events` and `get_recent_events` tools — reads from a local `Event` table populated by the events-collector
+- Events collector at `apps/api/src/services/events-collector.ts` — 30-min tick aggregating three **keyless** public sources: ForexFactory macro calendar (FOMC / CPI / NFP / ECB / BoE — USD/EUR/GBP/CNY only, High+Medium impact), Deribit BTC/ETH options expiries (next 14 days, monthly = high), DefiLlama protocol hacks (last 30 days, ≥$1M). Source-pluggable: each fetcher returns `FetchResult` and is fail-isolated so one outage doesn't break the others
+- `Event` model on the API — generic schema (`source`, `sourceId`, `kind`, `asset`, `title`, `importance`, `startsAt`, `endsAt`, `metadata`) with composite unique key for upsert
+- `GET /api/events/upcoming` and `GET /api/events/recent` REST endpoints (filtered by `window_hours`, `asset`, `importance`)
+- Events collector reports to the scheduler registry — visible on the `/control-tower` Schedulers panel like other tickers
+- **Event Gate** on the News Analyst — runs `get_upcoming_events(window_hours: 6, importance: "high")` before news analysis and emits `CLEAR` / `CAUTION` / `AVOID-ENTRY` on the first line of its output. Team Lead treats `AVOID-ENTRY` as a hard veto forcing `WAIT` regardless of TA/data conviction
+- **Results hub** at `/results` — one card per result type with live counts. Currently only **Trade Decisions**; structure scales as new types ship (research reports, alerts, etc.)
+- `/results/trade-decisions` — existing trading terminal moved into a sub-route under the hub, with `← Results` back-link; runs filtered by `resultCard.type === "trade-decision"` so future result types don't leak in
+
+### Changed
+
+- Team Lead SKILL.md — `event_verdict` JSON field now sourced from the News Analyst's Event Gate line; removed `event_lean` field (was honestly NEUTRAL almost always — added noise without signal)
+
 ## [0.1.5] - 2026-04-29
 
 ### Added

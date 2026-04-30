@@ -8,6 +8,7 @@ import { MonitoringBadge } from "@/components/monitoring-badge";
 import { Button } from "@/components/ui/button";
 import { ResultCard } from "@/components/result-card";
 import { ManualTradePanel } from "@/components/manual-trade-panel";
+import { EventsStream } from "@/components/events-stream";
 import type { ResultCardConfig } from "@/lib/result-cards";
 
 interface Trade {
@@ -126,10 +127,10 @@ export function ResultsTerminal({ runs }: { runs: HeartbeatRun[] }) {
         </div>
       </div>
 
-      {/* Two-pane: blotter + chart */}
-      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,360px)_1fr] gap-4">
-        {/* Blotter */}
-        <div className="space-y-2">
+      {/* Three-pane: blotter + chart + events sidebar */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+        {/* Blotter — 3 cols */}
+        <div className="lg:col-span-3 space-y-2">
           <div className="flex items-center gap-2 text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
             <Filter className="h-3 w-3" />
             <span>Filters</span>
@@ -161,9 +162,17 @@ export function ResultsTerminal({ runs }: { runs: HeartbeatRun[] }) {
           </div>
         </div>
 
-        {/* Chart pane */}
-        <div className="space-y-2">
+        {/* Chart pane — 6 cols */}
+        <div className="lg:col-span-6 space-y-2">
           {selected ? <ChartPane trade={selected} /> : <ChartEmpty />}
+        </div>
+
+        {/* Events sidebar — 3 cols, asset-filtered to selected trade (or BTC fallback) */}
+        <div className="lg:col-span-3 space-y-2">
+          <EventsStream
+            density="compact"
+            asset={selected ? (selected.asset.split(/[\/\-_\s]/)[0]?.toUpperCase() || undefined) : undefined}
+          />
         </div>
       </div>
     </div>

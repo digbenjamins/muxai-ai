@@ -15,9 +15,11 @@ import { settingsRoutes } from "./routes/settings";
 import { teamRoutes } from "./routes/teams";
 import { schedulerRoutes } from "./routes/schedulers";
 import { candleRoutes } from "./routes/candles";
+import { eventRoutes } from "./routes/events";
 import { initScheduler } from "./services/scheduler";
 import { initTelegramGatewayOnBoot } from "./services/gateways/telegram";
 import { initTradeResolver } from "./services/trade-resolver-tick";
+import { initEventsCollector } from "./services/events-collector";
 import "./services/adapters"; // Register all adapter types (claude_local, etc.)
 import { onGlobalLog } from "./services/run-events";
 import { apiKeyAuth } from "./middleware/auth";
@@ -72,6 +74,7 @@ app.use("/api/settings", settingsRoutes);
 app.use("/api/teams", teamRoutes);
 app.use("/api/schedulers", schedulerRoutes);
 app.use("/api/candles", candleRoutes);
+app.use("/api/events", eventRoutes);
 
 // GET /api/logs/stream — global SSE stream for all agent activity
 app.get("/api/logs/stream", (req, res) => {
@@ -120,6 +123,7 @@ async function main() {
     await initScheduler();
     await initTelegramGatewayOnBoot();
     initTradeResolver();
+    initEventsCollector();
   });
 }
 

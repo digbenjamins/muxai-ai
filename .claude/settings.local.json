@@ -2,7 +2,17 @@
   "permissions": {
     "allow": [
       "Bash(git show *)",
-      "Bash(pnpm typecheck *)"
+      "Bash(pnpm typecheck *)",
+      "Bash(pnpm prisma *)",
+      "Bash(pnpm vitest *)",
+      "Bash(pnpm tsc *)",
+      "Bash(pnpm test *)",
+      "Bash(pnpm test:integration)",
+      "Bash(pnpm add *)",
+      "WebFetch(domain:docs.elfa.ai)",
+      "Bash(pnpm --filter @muxai/api test:integration)",
+      "Bash(pnpm --filter @muxai/web build)",
+      "Bash(pnpm --filter @muxai/api run test:integration)"
     ]
   }
 }

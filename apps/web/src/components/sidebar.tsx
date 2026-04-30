@@ -31,8 +31,7 @@ interface NavItem {
 const platformNav: NavItem[] = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard, exact: true },
   { href: "/control-tower", label: "Control Tower", icon: Radar },
-  { href: "/mcp-servers", label: "MCP Servers", icon: Plug },
-  { href: "/settings", label: "Settings", icon: Settings },
+  { href: "/results", label: "Results", icon: FileJson },
 ];
 
 const agentsNav: NavItem[] = [
@@ -145,14 +144,14 @@ export function Sidebar() {
             Sandbox
           </Link>
           <Link
-            href="/results"
+            href="/mcp-servers"
             className={cn(
               "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
-              isActive("/results") ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:bg-accent/50 hover:text-accent-foreground",
+              isActive("/mcp-servers") ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:bg-accent/50 hover:text-accent-foreground",
             )}
           >
-            <FileJson className={cn("h-4 w-4", isActive("/results") ? "text-foreground" : "text-muted-foreground")} />
-            Results
+            <Plug className={cn("h-4 w-4", isActive("/mcp-servers") ? "text-foreground" : "text-muted-foreground")} />
+            MCP Servers
           </Link>
           <Link
             href="/streams"
@@ -164,12 +163,22 @@ export function Sidebar() {
             <Radio className={cn("h-4 w-4", isActive("/streams") ? "text-foreground" : "text-muted-foreground")} />
             Stream History
           </Link>
+          <Link
+            href="/settings"
+            className={cn(
+              "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+              isActive("/settings") ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:bg-accent/50 hover:text-accent-foreground",
+            )}
+          >
+            <Settings className={cn("h-4 w-4", isActive("/settings") ? "text-foreground" : "text-muted-foreground")} />
+            Settings
+          </Link>
         </div>
       </nav>
 
       {/* Footer */}
       <div className="px-5 py-4 border-t border-border">
-        <p className="text-xs text-muted-foreground/50 font-mono">v2026.1.5</p>
+        <p className="text-xs text-muted-foreground/50 font-mono">v2026.1.6</p>
       </div>
     </aside>
   );

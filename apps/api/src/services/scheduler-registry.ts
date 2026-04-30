@@ -1,7 +1,7 @@
 // In-memory registry of background loops running in this API process.
 // Each scheduler reports its status here so /api/schedulers can surface them.
 
-export type SchedulerKind = "heartbeat" | "trade-resolver" | "telegram";
+export type SchedulerKind = "heartbeat" | "trade-resolver" | "telegram" | "events-collector";
 export type SchedulerStatus = "idle" | "running" | "error";
 
 export interface SchedulerEntry {

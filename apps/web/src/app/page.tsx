@@ -1,18 +1,18 @@
 import Link from "next/link";
-import { PlusCircle, Bot, AlertTriangle, CalendarClock, Play, ChevronRight } from "lucide-react";
+import { PlusCircle, Bot, AlertTriangle, CalendarClock, ChevronRight } from "lucide-react";
 import { apiFetch } from "@/lib/utils";
 import type { Agent, HeartbeatRun } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { AgentStatusBadge } from "@/components/agent-status-badge";
-import { RunStatusBadge } from "@/components/run-status-badge";
-import { RunResult } from "@/components/run-result";
-import type { ResultCardConfig } from "@/lib/result-cards";
+import { RecentRunsList } from "@/components/recent-runs-list";
 
 async function getAgents(): Promise<Agent[]> {
   try { return await apiFetch<Agent[]>("/api/agents"); } catch { return []; }
 }
-async function getRecentRuns(): Promise<HeartbeatRun[]> {
-  try { return await apiFetch<HeartbeatRun[]>("/api/runs?limit=15"); } catch { return []; }
+async function getRecentRunsForStats(): Promise<HeartbeatRun[]> {
+  // Server-side fetch only for the status-bar today counters; the live runs list
+  // is rendered by the RecentRunsList client component below with its own poller.
+  try { return await apiFetch<HeartbeatRun[]>("/api/runs?limit=60"); } catch { return []; }
 }
 async function getLatestResult(): Promise<HeartbeatRun | null> {
   try {
@@ -36,14 +36,6 @@ function timeAgo(dateStr: string): string {
   const hrs = Math.floor(mins / 60);
   if (hrs < 24) return `${hrs}h ago`;
   return `${Math.floor(hrs / 24)}d ago`;
-}
-
-function duration(run: HeartbeatRun): string | null {
-  if (!run.startedAt || !run.finishedAt) return null;
-  const ms = new Date(run.finishedAt).getTime() - new Date(run.startedAt).getTime();
-  if (ms < 1000) return `${ms}ms`;
-  if (ms < 60000) return `${(ms / 1000).toFixed(1)}s`;
-  return `${Math.floor(ms / 60000)}m ${Math.floor((ms % 60000) / 1000)}s`;
 }
 
 function greeting(): string {
@@ -212,35 +204,53 @@ function AgentList({ agents }: { agents: Agent[] }) {
   );
 }
 
-// ─── Run Timeline ───────────────────────────────────────────────────────────────
+// ─── Latest Result Strip ───────────────────────────────────────────────────────
 
-const RUN_DOT: Record<string, string> = {
-  succeeded: "bg-emerald-500",
-  failed: "bg-red-500",
-  running: "bg-blue-500 animate-pulse",
-  queued: "bg-amber-500",
-  cancelled: "bg-slate-500",
-  timed_out: "bg-orange-500",
-};
+function LatestResultStrip({ run }: { run: HeartbeatRun }) {
+  const result = (run.resultJson ?? {}) as Record<string, unknown>;
+  const adapter = (run.agent?.adapterConfig ?? {}) as Record<string, unknown>;
+  const card = adapter.resultCard as { type?: string; mapping?: Record<string, string> } | undefined;
+  const mapping = card?.mapping ?? {};
+  const get = (key: string) => result[(mapping[key] || key)];
 
-function RunRow({ run }: { run: HeartbeatRun }) {
-  const dur = duration(run);
+  const isTrade = card?.type === "trade-decision";
+  const decision = String(get("decision") ?? "").toUpperCase();
+  const asset = String(get("asset") ?? "");
+  const timeframe = String(get("timeframe") ?? "");
+  const fields = (run.outcomeFields ?? {}) as Record<string, unknown>;
+  const rMultiple = typeof fields.r_multiple === "number" ? fields.r_multiple : null;
+  const sideColor =
+    decision === "LONG" ? "text-emerald-400" :
+    decision === "SHORT" ? "text-red-400" :
+    decision === "WAIT" ? "text-amber-400" : "text-muted-foreground";
+
   return (
-    <Link href={`/agents/${run.agent?.id}/runs/${run.id}`} className="flex items-start gap-3 group py-2.5 px-4 hover:bg-accent/40 transition-colors">
-      <div className="flex flex-col items-center pt-1 shrink-0">
-        <div className={`h-2 w-2 rounded-full shrink-0 ${RUN_DOT[run.status] ?? "bg-slate-500"}`} />
-      </div>
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center justify-between gap-2">
-          <span className="text-sm font-medium truncate">{run.agent?.name ?? "—"}</span>
-          <span className="text-xs text-muted-foreground shrink-0">{timeAgo(run.createdAt)}</span>
-        </div>
-        <div className="flex items-center gap-2 mt-0.5">
-          <RunStatusBadge status={run.status} />
-          {dur && <span className="text-xs text-muted-foreground font-mono">{dur}</span>}
-          <span className="text-xs text-muted-foreground capitalize opacity-60">{run.invocationSource?.replace("_", " ")}</span>
-        </div>
-      </div>
+    <Link
+      href={`/agents/${run.agent?.id}/runs/${run.id}`}
+      className="flex items-center gap-3 px-4 py-2.5 rounded-lg border border-border bg-card hover:bg-accent/40 transition-colors group"
+    >
+      <span className="text-[10px] font-mono uppercase tracking-[0.15em] text-muted-foreground shrink-0">Latest</span>
+      {isTrade ? (
+        <>
+          {asset && <span className="text-sm font-mono font-medium truncate">{asset}</span>}
+          {timeframe && <span className="text-[10px] font-mono text-muted-foreground">{timeframe}</span>}
+          {decision && <span className={`text-[10px] font-mono font-bold uppercase tracking-wider ${sideColor}`}>{decision}</span>}
+          {run.outcome && (
+            <span className={`text-[10px] font-mono uppercase tracking-wider ${
+              run.outcome === "Win" ? "text-emerald-400" : run.outcome === "Loss" ? "text-red-400" : "text-muted-foreground"
+            }`}>
+              {run.outcome}{rMultiple !== null ? ` ${rMultiple >= 0 ? "+" : ""}${rMultiple.toFixed(2)}R` : ""}
+            </span>
+          )}
+        </>
+      ) : (
+        <span className="text-sm truncate text-muted-foreground">{run.agent?.name ?? "—"} — result available</span>
+      )}
+      <span className="ml-auto flex items-center gap-2 shrink-0 text-xs text-muted-foreground">
+        <span className="hidden sm:inline truncate max-w-[120px]">{run.agent?.name ?? ""}</span>
+        <span className="font-mono opacity-60">{timeAgo(run.createdAt)}</span>
+        <ChevronRight className="h-3.5 w-3.5 group-hover:translate-x-0.5 transition-transform" />
+      </span>
     </Link>
   );
 }
@@ -248,7 +258,7 @@ function RunRow({ run }: { run: HeartbeatRun }) {
 // ─── Page ───────────────────────────────────────────────────────────────────────
 
 export default async function DashboardPage() {
-  const [agents, recentRuns, latestResult] = await Promise.all([getAgents(), getRecentRuns(), getLatestResult()]);
+  const [agents, recentRuns, latestResult] = await Promise.all([getAgents(), getRecentRunsForStats(), getLatestResult()]);
 
   const active = agents.filter((a) => a.status !== "terminated");
   const running = agents.filter((a) => a.status === "running");
@@ -304,32 +314,12 @@ export default async function DashboardPage() {
         runningNames={running.length > 0 ? running.map((a) => a.name).join(", ") : ""}
       />
 
-      {/* Latest result */}
-      {latestResult?.resultJson && (
-        <div className="space-y-2">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <h2 className="font-semibold text-sm">Latest Result</h2>
-              <span className="text-xs text-muted-foreground">{latestResult.agent?.name}</span>
-              <span className="text-xs text-muted-foreground font-mono opacity-60">{timeAgo(latestResult.createdAt)}</span>
-            </div>
-            <Link href="/results" className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors">
-              All results <ChevronRight className="h-3 w-3" />
-            </Link>
-          </div>
-          <RunResult
-            resultJson={latestResult.resultJson}
-            cardConfig={(latestResult.agent?.adapterConfig?.resultCard as ResultCardConfig | undefined)}
-            compact
-          />
-        </div>
-      )}
+      {/* Latest result — single-line strip */}
+      {latestResult?.resultJson && <LatestResultStrip run={latestResult} />}
 
       {/* Main content */}
-      <div className="grid gap-6 lg:grid-cols-5">
-
-        {/* Agents — 3 cols */}
-        <div className="lg:col-span-3 space-y-4">
+      <div className="space-y-6">
+        <div className="space-y-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <h2 className="font-semibold text-sm">Agents</h2>
@@ -362,30 +352,10 @@ export default async function DashboardPage() {
           )}
         </div>
 
-        {/* Recent runs — 2 cols */}
-        <div className="lg:col-span-2 space-y-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <h2 className="font-semibold text-sm">Recent Activity</h2>
-              <span className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded-md">{recentRuns.length}</span>
-            </div>
-          </div>
-
-          {recentRuns.length === 0 ? (
-            <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border py-20 text-center">
-              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted mb-4">
-                <Play className="h-6 w-6 text-muted-foreground" />
-              </div>
-              <p className="text-sm font-medium">No runs yet</p>
-              <p className="text-xs text-muted-foreground mt-1">Runs appear here once agents are invoked</p>
-            </div>
-          ) : (
-            <div className="rounded-xl border border-border bg-card divide-y divide-border overflow-hidden">
-              {recentRuns.map((run) => <RunRow key={run.id} run={run} />)}
-            </div>
-          )}
+        <div className="space-y-3">
+          <h2 className="font-semibold text-sm">Recent Runs</h2>
+          <RecentRunsList />
         </div>
-
       </div>
     </div>
   );

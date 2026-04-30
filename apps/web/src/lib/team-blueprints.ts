@@ -21,7 +21,7 @@ export const TEAM_BLUEPRINTS: TeamBlueprint[] = [
   {
     id: "trade-desk",
     label: "Trade Desk",
-    description: "Crypto analysis team that synthesizes OHLCV indicators, funding rates, open interest, news sentiment, and chart analysis into a structured trade decision.",
+    description: "Crypto analysis team that synthesizes OHLCV indicators, funding rates, open interest, news sentiment, chart analysis, and the macro/event calendar into a structured trade decision.",
     image: "/trading_desk_team.jpg",
     members: [
       { templateId: "team-lead", role: "lead" },

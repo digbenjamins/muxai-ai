@@ -218,3 +218,26 @@ enum WakeupStatus {
   claimed
   finished
 }
+
+// ─── Event ────────────────────────────────────────────────────────────────────
+// Calendar events ingested by the events-collector scheduler. Read-only feed
+// consumed by the news-analyst's Event Gate via mcp-events.
+model Event {
+  id          String   @id @default(uuid())
+  source      String   // "defillama" | "forexfactory" | "deribit" | ...
+  sourceId    String   // stable dedup key from the upstream source
+  kind        String   // "macro" | "unlock" | "options-expiry" | "hack" | "raise" | ...
+  asset       String?  // BTC / SOL / ETH / null for macro events
+  title       String
+  description String?
+  importance  String   @default("medium") // "high" | "medium" | "low"
+  startsAt    DateTime
+  endsAt      DateTime?
+  metadata    Json?
+  fetchedAt   DateTime @default(now())
+
+  @@unique([source, sourceId])
+  @@index([startsAt])
+  @@index([asset])
+  @@map("events")
+}

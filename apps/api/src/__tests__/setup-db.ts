@@ -38,7 +38,8 @@ export function setupTestDb() {
     // Truncate all tables between tests (order matters for FK constraints)
     await client.$executeRawUnsafe(`
       TRUNCATE TABLE chat_messages, chat_sessions, heartbeat_runs,
-        wakeup_requests, mcp_servers, contractors, agents, agent_roles, settings
+        wakeup_requests, mcp_servers, contractors, agents, agent_roles,
+        events, settings
       CASCADE
     `);
   });
