@@ -17,6 +17,11 @@ const TEST_DATABASE_URL =
   process.env.TEST_DATABASE_URL ||
   "postgresql://muxai_test_user:muxai_test_password@localhost:5434/muxai_test";
 
+// Point the lazy prisma proxy in lib/db.ts at the test DB so services that
+// import it directly (e.g. processWatchesForSymbol) share storage with the
+// per-test prisma client returned by getTestPrisma().
+process.env.DATABASE_URL = TEST_DATABASE_URL;
+
 let client: PrismaClient;
 
 export function setupTestDb() {
@@ -37,9 +42,9 @@ export function setupTestDb() {
   afterEach(async () => {
     // Truncate all tables between tests (order matters for FK constraints)
     await client.$executeRawUnsafe(`
-      TRUNCATE TABLE chat_messages, chat_sessions, heartbeat_runs,
+      TRUNCATE TABLE chat_messages, chat_sessions, price_watches, heartbeat_runs,
         wakeup_requests, mcp_servers, contractors, agents, agent_roles,
-        events, settings
+        candles, events, settings
       CASCADE
     `);
   });

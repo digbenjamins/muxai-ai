@@ -1,0 +1,72 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 240" font-family="ui-sans-serif, system-ui, sans-serif">
+  <style>
+    .bg     { fill: #0b0b0f; }
+    .stroke { stroke: #e5e7eb; stroke-width: 4; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+    .label  { fill: #9ca3af; font-size: 12px; text-anchor: middle; letter-spacing: 0.08em; }
+    .wm     { fill: #e5e7eb; font-size: 22px; font-weight: 700; }
+    .accent { fill: #818cf8; }
+    .a1 { stroke: #f59e0b; }
+    .a2 { stroke: #22d3ee; }
+    .a3 { stroke: #34d399; }
+    .a4 { stroke: #f472b6; }
+    .out{ stroke: #818cf8; stroke-width: 5; }
+    .eye{ fill: #0b0b0f; }
+  </style>
+
+  <rect width="720" height="240" class="bg"/>
+
+  <!-- ============= VARIANT A: minimal monochrome ============= -->
+  <g transform="translate(20,30)">
+    <!-- 4 input lines -->
+    <line class="stroke" x1="0"  y1="30"  x2="50" y2="30"/>
+    <line class="stroke" x1="0"  y1="60"  x2="50" y2="60"/>
+    <line class="stroke" x1="0"  y1="90"  x2="50" y2="90"/>
+    <line class="stroke" x1="0"  y1="120" x2="50" y2="120"/>
+    <!-- Trapezoid (mux body) -->
+    <polygon class="stroke" points="50,10 50,140 160,110 160,40"/>
+    <!-- Output -->
+    <line class="stroke" x1="160" y1="75" x2="220" y2="75"/>
+
+    <text class="label" x="110" y="185">A · MINIMAL</text>
+  </g>
+
+  <!-- ============= VARIANT B: colored signals → one output ============= -->
+  <g transform="translate(260,30)">
+    <line class="stroke a1" x1="0"  y1="30"  x2="50" y2="30"/>
+    <line class="stroke a2" x1="0"  y1="60"  x2="50" y2="60"/>
+    <line class="stroke a3" x1="0"  y1="90"  x2="50" y2="90"/>
+    <line class="stroke a4" x1="0"  y1="120" x2="50" y2="120"/>
+
+    <polygon class="stroke" points="50,10 50,140 160,110 160,40"/>
+
+    <!-- output line + glow dot -->
+    <line class="stroke out" x1="160" y1="75" x2="215" y2="75"/>
+    <circle cx="220" cy="75" r="7" class="accent"/>
+
+    <text class="label" x="110" y="185">B · SIGNAL FAN-IN</text>
+  </g>
+
+  <!-- ============= VARIANT C: mascot (mux-with-a-face) ============= -->
+  <g transform="translate(500,30)">
+    <line class="stroke" x1="0"  y1="30"  x2="50" y2="30"/>
+    <line class="stroke" x1="0"  y1="60"  x2="50" y2="60"/>
+    <line class="stroke" x1="0"  y1="90"  x2="50" y2="90"/>
+    <line class="stroke" x1="0"  y1="120" x2="50" y2="120"/>
+
+    <!-- Filled trapezoid (mascot body) -->
+    <polygon points="50,10 50,140 160,110 160,40" fill="#818cf8"/>
+
+    <!-- eyes -->
+    <circle cx="85"  cy="65" r="5" class="eye"/>
+    <circle cx="115" cy="72" r="5" class="eye"/>
+    <!-- tiny smile -->
+    <path d="M 88 92 Q 102 102 118 96" stroke="#0b0b0f" stroke-width="3" fill="none" stroke-linecap="round"/>
+
+    <line class="stroke out" x1="160" y1="75" x2="220" y2="75"/>
+
+    <text class="label" x="110" y="185">C · MASCOT</text>
+  </g>
+
+  <!-- footer wordmark -->
+  <text class="wm" x="360" y="225" text-anchor="middle">mux<tspan class="accent">AI</tspan></text>
+</svg>

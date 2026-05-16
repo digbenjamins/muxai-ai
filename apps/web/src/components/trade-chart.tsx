@@ -30,21 +30,33 @@ import { API_URL, API_KEY } from "@/lib/utils";
 // dependency on the `fancy-canvas` types package.
 type DrawTarget = Parameters<IPrimitivePaneRenderer["draw"]>[0];
 
+export interface ChartWatch {
+  price: number;
+  label: string;
+  status: "active" | "triggered" | "cancelled";
+  direction: "above" | "below";
+}
+
 interface Props {
   symbol: string;
   interval: string;
-  side: "LONG" | "SHORT";
-  entry: number;
-  takeProfit: number;
-  stopLoss: number;
+  side: "LONG" | "SHORT" | "WAIT";
+  // Entry/TP/SL are absent on WAIT decisions — chart still renders candles +
+  // EMAs + volume + a neutral decision marker, just without the position box.
+  entry?: number | null;
+  takeProfit?: number | null;
+  stopLoss?: number | null;
   decisionAt: number;        // ms epoch
   hitAt?: number | null;
   exitPrice?: number | null;
   outcome?: "Win" | "Loss" | "NA" | null;
+  // User-set price alerts attached to this run — drawn as dashed lines on the
+  // chart so the level the user is watching is visible alongside the candles.
+  watches?: ChartWatch[];
   height?: number;
 }
 
-interface CandleResp {
+export interface CandleResp {
   symbol: string;
   interval: string;
   candles: { time: number; open: number; high: number; low: number; close: number; volume: number }[];
@@ -61,6 +73,7 @@ export function TradeChart({
   hitAt,
   exitPrice,
   outcome,
+  watches,
   height = 480,
 }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -71,6 +84,7 @@ export function TradeChart({
   const ema200Ref = useRef<ISeriesApi<"Line"> | null>(null);
   const volumeRef = useRef<ISeriesApi<"Histogram"> | null>(null);
   const priceLinesRef = useRef<IPriceLine[]>([]);
+  const watchLinesRef = useRef<IPriceLine[]>([]);
   const markersRef = useRef<ISeriesMarkersPluginApi<Time> | null>(null);
   const positionBoxRef = useRef<PositionBoxPrimitive | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -135,6 +149,7 @@ export function TradeChart({
       ema200Ref.current = null;
       volumeRef.current = null;
       priceLinesRef.current = [];
+      watchLinesRef.current = [];
       markersRef.current = null;
       positionBoxRef.current = null;
     };
@@ -189,34 +204,49 @@ export function TradeChart({
 
         // Tear down + recreate price lines (entry/TP/SL) — kept for axis labels.
         for (const pl of priceLinesRef.current) candles.removePriceLine(pl);
-        priceLinesRef.current = [
-          candles.createPriceLine({ price: entry,      color: "#94a3b8", lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: true, title: "Entry" }),
-          candles.createPriceLine({ price: takeProfit, color: "#10b981", lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: true, title: "TP" }),
-          candles.createPriceLine({ price: stopLoss,   color: "#ef4444", lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: true, title: "SL" }),
-        ];
+        priceLinesRef.current = [];
+        const hasLevels =
+          typeof entry === "number" && typeof takeProfit === "number" && typeof stopLoss === "number";
+        if (hasLevels) {
+          priceLinesRef.current = [
+            candles.createPriceLine({ price: entry!,      color: "#94a3b8", lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: true, title: "Entry" }),
+            candles.createPriceLine({ price: takeProfit!, color: "#10b981", lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: true, title: "TP" }),
+            candles.createPriceLine({ price: stopLoss!,   color: "#ef4444", lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: true, title: "SL" }),
+          ];
+        }
 
         // Position box primitive — green TP zone + red SL zone, decision → exit/now.
+        // Only drawn for LONG/SHORT with concrete levels; WAIT decisions skip it.
         if (positionBoxRef.current) candles.detachPrimitive(positionBoxRef.current);
+        positionBoxRef.current = null;
         const lastTime = data.length ? (data[data.length - 1].time as UTCTimestamp) : (Math.floor(Date.now() / 1000) as UTCTimestamp);
         // Snap to nearest bar so timeToCoordinate resolves cleanly across timeframes.
         const decisionTimeSec = snapToBar(body.candles, decisionAt);
         const exitTimeSec = (hitAt ? snapToBar(body.candles, hitAt) : lastTime) as UTCTimestamp;
-        positionBoxRef.current = new PositionBoxPrimitive({
-          decisionTime: decisionTimeSec,
-          exitTime: exitTimeSec,
-          entry, takeProfit, stopLoss,
-        });
-        candles.attachPrimitive(positionBoxRef.current);
+        if (hasLevels && side !== "WAIT") {
+          positionBoxRef.current = new PositionBoxPrimitive({
+            decisionTime: decisionTimeSec,
+            exitTime: exitTimeSec,
+            entry: entry!, takeProfit: takeProfit!, stopLoss: stopLoss!,
+          });
+          candles.attachPrimitive(positionBoxRef.current);
+        }
 
-        // Markers
-        const markers: SeriesMarker<Time>[] = [{
-          time: decisionTimeSec,
-          position: side === "LONG" ? "belowBar" : "aboveBar",
-          color: "#94a3b8",
-          shape: side === "LONG" ? "arrowUp" : "arrowDown",
-          text: side,
-        }];
-        if (hitAt && exitPrice !== undefined && exitPrice !== null) {
+        // Markers — for WAIT, neutral circle marker (no arrow direction). For
+        // LONG/SHORT, arrow points in the trade direction + an exit marker if
+        // the trade has resolved.
+        const markers: SeriesMarker<Time>[] = [
+          side === "WAIT"
+            ? { time: decisionTimeSec, position: "aboveBar", color: "#f59e0b", shape: "circle", text: "WAIT" }
+            : {
+                time: decisionTimeSec,
+                position: side === "LONG" ? "belowBar" : "aboveBar",
+                color: "#94a3b8",
+                shape: side === "LONG" ? "arrowUp" : "arrowDown",
+                text: side,
+              },
+        ];
+        if (side !== "WAIT" && hitAt && exitPrice !== undefined && exitPrice !== null) {
           const win = outcome === "Win";
           markers.push({
             time: Math.floor(hitAt / 1000) as UTCTimestamp,
@@ -250,6 +280,30 @@ export function TradeChart({
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [symbol, interval, entry, takeProfit, stopLoss, decisionAt, hitAt, exitPrice, outcome, side]);
+
+  // Watch lines redraw on their own so toggling watches doesn't force a candle
+  // reload. Active watches render solid amber, triggered ones muted.
+  useEffect(() => {
+    const candles = seriesRef.current;
+    if (!candles) return;
+    for (const pl of watchLinesRef.current) candles.removePriceLine(pl);
+    watchLinesRef.current = [];
+    if (!watches || watches.length === 0) return;
+    for (const w of watches) {
+      const triggered = w.status === "triggered";
+      const arrow = w.direction === "above" ? "▲" : "▼";
+      watchLinesRef.current.push(
+        candles.createPriceLine({
+          price: w.price,
+          color: triggered ? "rgba(16, 185, 129, 0.65)" : "rgba(251, 191, 36, 0.85)",
+          lineWidth: 1,
+          lineStyle: triggered ? LineStyle.Solid : LineStyle.LargeDashed,
+          axisLabelVisible: true,
+          title: `${arrow} ${w.price}`,
+        }),
+      );
+    }
+  }, [watches]);
 
   return (
     <div className="relative" style={{ height }}>
@@ -294,7 +348,7 @@ interface BoxParams {
   stopLoss: number;
 }
 
-class PositionBoxPrimitive implements ISeriesPrimitive<Time> {
+export class PositionBoxPrimitive implements ISeriesPrimitive<Time> {
   private _params: BoxParams;
   private _paneView: PositionBoxPaneView;
   private _renderer: PositionBoxRenderer;
@@ -370,7 +424,7 @@ class PositionBoxRenderer implements IPrimitivePaneRenderer {
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
-function computeEma(values: number[], period: number): (number | null)[] {
+export function computeEma(values: number[], period: number): (number | null)[] {
   const k = 2 / (period + 1);
   const out: (number | null)[] = new Array(values.length).fill(null);
   if (values.length < period) return out;
@@ -385,7 +439,7 @@ function computeEma(values: number[], period: number): (number | null)[] {
   return out;
 }
 
-function toLineData(candles: CandleResp["candles"], values: (number | null)[]): LineData[] {
+export function toLineData(candles: CandleResp["candles"], values: (number | null)[]): LineData[] {
   const out: LineData[] = [];
   for (let i = 0; i < candles.length; i++) {
     const v = values[i];
@@ -395,7 +449,7 @@ function toLineData(candles: CandleResp["candles"], values: (number | null)[]): 
   return out;
 }
 
-function snapToBar(candles: CandleResp["candles"], ms: number): UTCTimestamp {
+export function snapToBar(candles: CandleResp["candles"], ms: number): UTCTimestamp {
   const target = Math.floor(ms / 1000);
   if (!candles.length) return target as UTCTimestamp;
   let best = candles[0].time;
@@ -407,7 +461,7 @@ function snapToBar(candles: CandleResp["candles"], ms: number): UTCTimestamp {
   return best as UTCTimestamp;
 }
 
-function intervalToMs(interval: string): number {
+export function intervalToMs(interval: string): number {
   const m = interval.match(/^(\d+)([mhdwM])$/);
   if (!m) return 4 * 3600 * 1000;
   const n = parseInt(m[1], 10);

@@ -1,5 +1,16 @@
 "use client";
 import { getCardDefinition, resolveSlot, type ResultCardConfig, type CardSlot } from "@/lib/result-cards";
+import { WatchForList, type PriceWatch } from "@/components/watch-for-list";
+
+// Optional context passed when the card is rendered with a real run behind it.
+// Enables per-item bell buttons on the watch_for list that create price alerts.
+export interface WatchContext {
+  runId: string;
+  symbol: string;
+  interval?: string | null;
+  watches: PriceWatch[];
+  onChange: () => void;
+}
 
 // ─── Badge color mapping ─────────────────────────────────────────────────────
 
@@ -105,7 +116,14 @@ function DeltaValue({ value }: { value: unknown }) {
 
 // ─── Generic card ────────────────────────────────────────────────────────────
 
-export function ResultCard({ config, data, embedded }: { config: ResultCardConfig; data: Record<string, unknown>; embedded?: boolean }) {
+export function ResultCard({
+  config, data, embedded, watchContext,
+}: {
+  config: ResultCardConfig;
+  data: Record<string, unknown>;
+  embedded?: boolean;
+  watchContext?: WatchContext;
+}) {
   const def = getCardDefinition(config.type);
   if (!def) {
     return (
@@ -201,14 +219,29 @@ export function ResultCard({ config, data, embedded }: { config: ResultCardConfi
       {listSlots.map(s => {
         const val = resolve(s);
         if (!val || !Array.isArray(val) || val.length === 0) return null;
+        // For watch_for on a trade-decision card with a live runId, swap in
+        // the bell-enabled list so users can attach price alerts to items.
+        const useWatchList = s.key === "watch_for" && config.type === "trade-decision" && watchContext;
         return (
           <div key={s.key}>
             <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">{s.label}</p>
-            <ul className="space-y-1">
-              {val.map((item, i) => (
-                <ListItem key={i} item={item} accent={theme.color} />
-              ))}
-            </ul>
+            {useWatchList ? (
+              <WatchForList
+                items={val}
+                watches={watchContext!.watches}
+                runId={watchContext!.runId}
+                symbol={watchContext!.symbol}
+                interval={watchContext!.interval}
+                accent={theme.color}
+                onChange={watchContext!.onChange}
+              />
+            ) : (
+              <ul className="space-y-1">
+                {val.map((item, i) => (
+                  <ListItem key={i} item={item} accent={theme.color} />
+                ))}
+              </ul>
+            )}
           </div>
         );
       })}

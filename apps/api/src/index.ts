@@ -15,6 +15,7 @@ import { settingsRoutes } from "./routes/settings";
 import { teamRoutes } from "./routes/teams";
 import { schedulerRoutes } from "./routes/schedulers";
 import { candleRoutes } from "./routes/candles";
+import { runWatchRoutes, watchRoutes } from "./routes/watches";
 import { eventRoutes } from "./routes/events";
 import { methodologyRoutes } from "./routes/methodologies";
 import { initScheduler } from "./services/scheduler";
@@ -65,7 +66,9 @@ app.use(apiKeyAuth);
 
 app.use("/api/agents", agentRoutes);
 app.use("/api/control-tower", controlTowerRoutes);
+app.use("/api/runs/:runId/watches", runWatchRoutes);
 app.use("/api/runs", runRoutes);
+app.use("/api/watches", watchRoutes);
 app.use("/api/mcp-servers", mcpServerRoutes);
 app.use("/api/sandbox", sandboxRoutes);
 app.use("/api/roles", roleRoutes);

@@ -4,6 +4,26 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.1.9] - 2026-05-16
+
+### Added
+
+- **Price watches** — user-created price alerts attached to a run. New `PriceWatch` model (`runId`, `symbol`, `interval?`, `price`, `direction`, `kind`, `label`, `status`, `triggeredAt?`, `triggeredPrice?`). One-shot: `active → triggered` is terminal; re-arm by creating a new watch
+- `apps/api/src/services/watch-checker.ts` — pure `findTriggeringCandle(watch, candles)` returns the earliest candle (after `createdAt`) where the level was crossed in the watch's direction; DB-touching `processWatchesForSymbol(symbol, candles)` persists triggers idempotently
+- Watch checking piggybacks on the existing 60s `trade-resolver` tick — no new scheduler entry. Trigger firing is a `console.log` stub for now, easy to swap for Telegram / web-push later
+- `apps/api/src/routes/watches.ts` — `POST/GET /api/runs/:runId/watches` (per-run), `GET /api/watches?status=active,triggered` (global, top-500 for the Notifications panel), `DELETE /api/watches/:id` (idempotent 404). User only picks `confirms`/`invalidates`; the server infers `above`/`below` from the supplied price vs. the latest close, keeping the UX one field shorter
+- **Bell icon on every `watch_for` item** in the trade-decision card (`apps/web/src/components/watch-for-list.tsx`) — inline editor with `confirms`/`invalidates` toggle, price input, optional message override. Existing watches render as colored badges next to the item (emerald for confirms/triggered, red for invalidates, amber for legacy)
+- **Notifications panel** on the trade-decisions terminal (`apps/web/src/components/active-watches-panel.tsx`) — grouped by symbol with Armed/Hit sections, "+ Add" custom-alert form against the currently-selected trade, click-to-jump to the originating run
+- **Candle cache** — DB-first read with Binance gap-fill and write-through (`apps/api/src/services/candle-cache.ts`). New `Candle` model with PK `(symbol, interval, openTime)` and a `(symbol, interval, openTime DESC)` index. `getCandles({ symbol, interval, from, to?, limit? })` reads what's in the DB → detects gaps via the pure `findGaps` helper → pages Binance klines (1000/req, hard 20-page safety cap) → `createMany({ skipDuplicates: true })` → merges, dedupes, sorts. Excludes the currently-open bar from persistence (closeTime > now) but returns it to callers
+- Both the chart proxy (`apps/api/src/routes/candles.ts`) and the trade-resolver tick now read through the cache — the resolver's fetches warm the chart's cache and vice versa, no more redundant Binance hits
+- WAIT decisions ride along in the resolver's fetch groups solely to keep their candles warm; older than `expireBars × intervalMs` are dropped so cache load stays bounded
+- **Combined multi-trade chart view** for the trade-decisions terminal (`apps/web/src/components/charts-view.tsx` + `multi-trade-chart.tsx`) — tabs across assets, overlays every trade's position box + entry/TP/SL price-lines + decision/resolution markers on a single chart per pair; active and triggered watch lines drawn alongside. Auto-picks the most-traded timeframe on the selected asset the first time you land on it
+- Unit tests — `candle-cache.test.ts` (gap detection + helpers), `watch-checker.test.ts` (pure trigger detection); integration test `watches.integration.test.ts` (route-level)
+
+### Changed
+
+- Trade-resolver tick reads candles via the shared cache (`fetchCandlesViaCache`) instead of fetching Binance klines directly; calls `processWatchesForSymbol` per fetch group so watch checking shares the same candle fetch as resolution
+
 ## [0.1.8] - 2026-05-12
 
 ### Added

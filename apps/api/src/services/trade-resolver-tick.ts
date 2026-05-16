@@ -4,6 +4,8 @@
 import { prisma } from "../lib/db";
 import { resolveTradeFromCandles, type Candle, type TradeSide } from "./trade-resolver";
 import { reportTick } from "./scheduler-registry";
+import { getCandles, intervalToMs, normalizeSymbol } from "./candle-cache";
+import { processWatchesForSymbol } from "./watch-checker";
 
 const TICK_MS = 60_000;
 const SCHEDULER_ID = "trade-resolver";
@@ -62,7 +64,10 @@ function readSide(json: Record<string, unknown>, key: string): TradeSide | "WAIT
 interface OpenTrade {
   runId: string;
   agentId: string;
-  side: TradeSide;
+  // WAIT decisions ride along in the same fetch groups so the candle cache
+  // stays warm for their (symbol, timeframe). They have no entry/TP/SL and
+  // are skipped by the per-trade resolver call.
+  side: TradeSide | "WAIT";
   entry: number;
   takeProfit: number;
   stopLoss: number;
@@ -121,6 +126,7 @@ async function findOpenTrades(): Promise<OpenTrade[]> {
     take: 200,
   });
 
+  const now = Date.now();
   const out: OpenTrade[] = [];
   for (const r of rows) {
     const card = getCardCfg(r.agent?.adapterConfig);
@@ -133,7 +139,40 @@ async function findOpenTrades(): Promise<OpenTrade[]> {
     const mapping = card.mapping;
     const decisionKey = getMappedField(mapping, "decision");
     const side = readSide(result, decisionKey);
-    if (!side || side === "WAIT") continue;
+    if (!side) continue;
+
+    const asset = (result[getMappedField(mapping, "asset")] as string | undefined) ?? null;
+    const timeframe = (result[getMappedField(mapping, "timeframe")] as string | undefined) ?? "4h";
+    if (!asset || typeof asset !== "string") continue;
+
+    const expireBars = auto?.expireBars || DEFAULT_EXPIRE_BARS;
+    const decisionAt = r.finishedAt!.getTime();
+
+    if (side === "WAIT") {
+      // WAIT decisions don't resolve, but we keep their candles warm so the
+      // chart is instant for the user reviewing watch_for/invalidation. Drop
+      // anything older than the expiry window so the cache load stays bounded.
+      const intervalMs = intervalToMs(timeframe);
+      if (!intervalMs) continue;
+      if (now - decisionAt > expireBars * intervalMs) continue;
+      out.push({
+        runId: r.id,
+        agentId: r.agentId,
+        side: "WAIT",
+        entry: 0,
+        takeProfit: 0,
+        stopLoss: 0,
+        decisionAt,
+        asset,
+        timeframe,
+        exchange: auto?.exchange || DEFAULT_EXCHANGE,
+        expireBars,
+        fillTolerancePct: typeof auto?.fillTolerancePct === "number" ? auto.fillTolerancePct : DEFAULT_TOLERANCE,
+        resolutionStatus: r.resolutionStatus,
+        resolutionMeta: (r.resolutionMeta ?? null) as Record<string, unknown> | null,
+      });
+      continue;
+    }
 
     const entry = readNumber(result, getMappedField(mapping, "entry"));
     const tp = readNumber(result, getMappedField(mapping, "take_profit"));
@@ -141,10 +180,6 @@ async function findOpenTrades(): Promise<OpenTrade[]> {
     if (entry === null || tp === null || sl === null) continue;
     if (side === "LONG" && (tp <= entry || sl >= entry)) continue;
     if (side === "SHORT" && (tp >= entry || sl <= entry)) continue;
-
-    const asset = (result[getMappedField(mapping, "asset")] as string | undefined) ?? null;
-    const timeframe = (result[getMappedField(mapping, "timeframe")] as string | undefined) ?? "4h";
-    if (!asset || typeof asset !== "string") continue;
 
     const meta = (r.resolutionMeta ?? null) as Record<string, unknown> | null;
     out.push({
@@ -154,11 +189,11 @@ async function findOpenTrades(): Promise<OpenTrade[]> {
       entry,
       takeProfit: tp,
       stopLoss: sl,
-      decisionAt: r.finishedAt!.getTime(),
+      decisionAt,
       asset,
       timeframe,
       exchange: auto?.exchange || DEFAULT_EXCHANGE,
-      expireBars: auto?.expireBars || DEFAULT_EXPIRE_BARS,
+      expireBars,
       fillTolerancePct: typeof auto?.fillTolerancePct === "number" ? auto.fillTolerancePct : DEFAULT_TOLERANCE,
       resolutionStatus: r.resolutionStatus,
       resolutionMeta: meta,
@@ -169,25 +204,18 @@ async function findOpenTrades(): Promise<OpenTrade[]> {
   return out;
 }
 
-function normalizeBinanceSymbol(asset: string): string {
-  return asset.toUpperCase().replace(/[\/\-_\s]/g, "");
-}
-
-async function fetchBinanceKlines(symbol: string, interval: string, sinceMs: number, expireBars: number): Promise<Candle[]> {
-  // Binance klines: oldest → newest; pull a chunk that covers [sinceMs, now]
-  // and is at most expireBars long.
-  const limit = Math.min(Math.max(expireBars + 2, 5), 500);
-  const url = `https://api.binance.com/api/v3/klines?symbol=${normalizeBinanceSymbol(symbol)}&interval=${interval}&startTime=${sinceMs}&limit=${limit}`;
-  const res = await fetch(url, { signal: AbortSignal.timeout(10_000) });
-  if (!res.ok) throw new Error(`Binance ${res.status}`);
-  const raw = (await res.json()) as unknown[][];
-  return raw.map((k) => ({
-    openTime: Number(k[0]),
-    open: parseFloat(k[1] as string),
-    high: parseFloat(k[2] as string),
-    low: parseFloat(k[3] as string),
-    close: parseFloat(k[4] as string),
-    closeTime: Number(k[6]),
+async function fetchCandlesViaCache(symbol: string, interval: string, sinceMs: number): Promise<Candle[]> {
+  // Read-through the shared cache so the resolver's fetches also fill the DB
+  // for the chart to read later. Resolver only needs OHLC + times — `volume`
+  // comes along for free and is ignored here.
+  const cached = await getCandles({ symbol, interval, from: sinceMs });
+  return cached.map((c) => ({
+    openTime: c.openTime,
+    open: c.open,
+    high: c.high,
+    low: c.low,
+    close: c.close,
+    closeTime: c.closeTime,
   }));
 }
 
@@ -205,7 +233,7 @@ async function tickOnce(): Promise<void> {
     // Group by (exchange, symbol, timeframe) — one fetch per group.
     const groups = new Map<string, OpenTrade[]>();
     for (const t of trades) {
-      const key = `${t.exchange}|${normalizeBinanceSymbol(t.asset)}|${t.timeframe}`;
+      const key = `${t.exchange}|${normalizeSymbol(t.asset)}|${t.timeframe}`;
       const list = groups.get(key) ?? [];
       list.push(t);
       groups.set(key, list);
@@ -221,14 +249,25 @@ async function tickOnce(): Promise<void> {
       const earliest = Math.min(...list.map((t) => t.decisionAt));
       let candles: Candle[];
       try {
-        candles = await fetchBinanceKlines(symbol, interval, earliest, Math.max(...list.map((t) => t.expireBars)));
+        candles = await fetchCandlesViaCache(symbol, interval, earliest);
       } catch (err) {
         errorCount++;
         console.error(`[trade-resolver] fetch failed for ${key}:`, err instanceof Error ? err.message : err);
         continue;
       }
 
+      // Check active price-watches for this symbol against the fresh candles.
+      // Cheap — one indexed query and an in-memory scan.
+      try {
+        await processWatchesForSymbol(symbol, candles);
+      } catch (err) {
+        console.error(`[trade-resolver] watch check failed for ${symbol}:`, err instanceof Error ? err.message : err);
+      }
+
       for (const trade of list) {
+        // WAIT trades only ride along to keep candles warm — no levels to
+        // resolve against, so skip the resolver call.
+        if (trade.side === "WAIT") continue;
         const tradeCandles = candles.filter((c) => c.openTime >= trade.decisionAt);
         const result = resolveTradeFromCandles({
           side: trade.side,

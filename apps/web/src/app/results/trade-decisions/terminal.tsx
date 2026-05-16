@@ -1,7 +1,7 @@
 "use client";
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, useCallback } from "react";
 import Link from "next/link";
-import { ChevronRight, FileJson, Filter } from "lucide-react";
+import { Bell, ChevronRight, FileJson, Filter } from "lucide-react";
 import type { HeartbeatRun } from "@/lib/types";
 import { TradeChart } from "@/components/trade-chart";
 import { MonitoringBadge } from "@/components/monitoring-badge";
@@ -10,7 +10,11 @@ import { ResultCard } from "@/components/result-card";
 import { ManualTradePanel } from "@/components/manual-trade-panel";
 import { EventsStream } from "@/components/events-stream";
 import { ReExamineButton } from "@/components/re-examine-button";
+import type { PriceWatch } from "@/components/watch-for-list";
+import { ActiveWatchesPanel } from "@/components/active-watches-panel";
+import { ChartsView, type ChartTrade } from "@/components/charts-view";
 import { canReExamine, type ResultCardConfig } from "@/lib/result-cards";
+import { API_URL, API_KEY } from "@/lib/utils";
 
 interface Trade {
   runId: string;
@@ -41,13 +45,49 @@ type Window = "24h" | "7d" | "all";
 type StatusFilter = "all" | "active" | "closed";
 type SideFilter = "all" | "LONG" | "SHORT" | "WAIT";
 type LeadFilter = string; // "all" or a specific agent id (the lead)
+type ViewMode = "charts" | "decisions";
 
 export function ResultsTerminal({ runs }: { runs: HeartbeatRun[] }) {
+  const [view, setView] = useState<ViewMode>("decisions");
   const [windowSel, setWindowSel] = useState<Window>("7d");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [sideFilter, setSideFilter] = useState<SideFilter>("all");
   const [leadFilter, setLeadFilter] = useState<LeadFilter>("all");
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
+
+  // Price-watches — shared across the blotter (bell badges), the chart pane
+  // (price lines + bell editor), and the right-column panel. We fetch BOTH
+  // active and triggered so the panel can show recent hits until the user
+  // dismisses them; the chart and blotter badges still only care about armed
+  // alerts.
+  const [allWatches, setAllWatches] = useState<PriceWatch[]>([]);
+  const refreshWatches = useCallback(async () => {
+    try {
+      const res = await fetch(`${API_URL}/api/watches?status=active,triggered`, {
+        headers: API_KEY ? { "X-Api-Key": API_KEY } : {},
+      });
+      if (!res.ok) return;
+      const body = await res.json() as { watches: PriceWatch[] };
+      setAllWatches(body.watches ?? []);
+    } catch {}
+  }, []);
+  useEffect(() => {
+    refreshWatches();
+    const i = setInterval(refreshWatches, 30_000);
+    return () => clearInterval(i);
+  }, [refreshWatches]);
+
+  const activeWatches = useMemo(() => allWatches.filter((w) => w.status === "active"), [allWatches]);
+
+  const watchesByRunId = useMemo(() => {
+    const map = new Map<string, PriceWatch[]>();
+    for (const w of activeWatches) {
+      const list = map.get(w.runId) ?? [];
+      list.push(w);
+      map.set(w.runId, list);
+    }
+    return map;
+  }, [activeWatches]);
 
   // Build a map of parent runId -> latest re-examination so we can surface
   // the most recent conviction score on the parent trade row.
@@ -170,23 +210,48 @@ export function ResultsTerminal({ runs }: { runs: HeartbeatRun[] }) {
             <Stat label="Hit rate" value={stats.hitRate !== null ? `${Math.round(stats.hitRate * 100)}%` : "—"} />
             <Stat label="Profit factor" value={stats.profitFactor !== null ? stats.profitFactor.toFixed(2) : "—"} />
           </div>
-          <div className="flex items-center gap-1 rounded-md border border-border p-0.5">
-            {(["24h", "7d", "all"] as Window[]).map((w) => (
-              <button
-                key={w}
-                onClick={() => setWindowSel(w)}
-                className={`px-2.5 py-1 text-[11px] font-mono uppercase tracking-wider rounded-sm transition-colors ${
-                  windowSel === w ? "bg-foreground/10 text-foreground" : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                {w}
-              </button>
-            ))}
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex items-center gap-1 rounded-md border border-border p-0.5">
+              {(["charts", "decisions"] as ViewMode[]).map((v) => (
+                <button
+                  key={v}
+                  onClick={() => setView(v)}
+                  className={`px-2.5 py-1 text-[11px] font-mono uppercase tracking-wider rounded-sm transition-colors ${
+                    view === v ? "bg-foreground/10 text-foreground" : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {v}
+                </button>
+              ))}
+            </div>
+            {view === "decisions" && (
+              <div className="flex items-center gap-1 rounded-md border border-border p-0.5">
+                {(["24h", "7d", "all"] as Window[]).map((w) => (
+                  <button
+                    key={w}
+                    onClick={() => setWindowSel(w)}
+                    className={`px-2.5 py-1 text-[11px] font-mono uppercase tracking-wider rounded-sm transition-colors ${
+                      windowSel === w ? "bg-foreground/10 text-foreground" : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    {w}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </div>
 
-      {/* Three-pane: blotter + chart + events sidebar */}
+      {view === "charts" && (
+        <ChartsView
+          trades={tradeDecisionTrades.map(toChartTrade)}
+          watches={activeWatches}
+          onTradeSelect={(runId) => { setSelectedRunId(runId); setView("decisions"); }}
+        />
+      )}
+
+      {view === "decisions" && (
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
         {/* Blotter — 3 cols */}
         <div className="lg:col-span-3 space-y-2">
@@ -220,7 +285,7 @@ export function ResultsTerminal({ runs }: { runs: HeartbeatRun[] }) {
                         selectedRunId === t.runId ? "bg-foreground/[0.04]" : "hover:bg-foreground/[0.02]"
                       }`}
                     >
-                      <BlotterRow trade={t} />
+                      <BlotterRow trade={t} activeWatchCount={watchesByRunId.get(t.runId)?.length ?? 0} />
                     </button>
                   </li>
                 ))}
@@ -232,20 +297,38 @@ export function ResultsTerminal({ runs }: { runs: HeartbeatRun[] }) {
         {/* Chart pane — 6 cols */}
         <div className="lg:col-span-6 space-y-2">
           {selected ? (
-            <ChartPane trade={selected} reExamRunning={reExamRunningByParent.has(selected.runId)} />
+            <ChartPane
+              trade={selected}
+              reExamRunning={reExamRunningByParent.has(selected.runId)}
+              watches={watchesByRunId.get(selected.runId) ?? []}
+              onWatchesChange={refreshWatches}
+            />
           ) : (
             <ChartEmpty />
           )}
         </div>
 
-        {/* Events sidebar — 3 cols, asset-filtered to selected trade (or BTC fallback) */}
+        {/* Right sidebar — 3 cols. Active notifications stack above the
+        events feed; clicking a watch selects its trade in the blotter. */}
         <div className="lg:col-span-3 space-y-2">
+          <ActiveWatchesPanel
+            watches={allWatches}
+            onChange={refreshWatches}
+            onSelect={setSelectedRunId}
+            selectedTrade={selected ? {
+              runId: selected.runId,
+              symbol: selected.symbol,
+              interval: selected.timeframe,
+              asset: selected.asset,
+            } : null}
+          />
           <EventsStream
             density="compact"
             asset={selected ? (selected.asset.split(/[\/\-_\s]/)[0]?.toUpperCase() || undefined) : undefined}
           />
         </div>
       </div>
+      )}
     </div>
   );
 }
@@ -278,7 +361,7 @@ function FilterRow({
   );
 }
 
-function BlotterRow({ trade }: { trade: Trade }) {
+function BlotterRow({ trade, activeWatchCount }: { trade: Trade; activeWatchCount: number }) {
   const sideColor =
     trade.side === "LONG" ? "text-emerald-400" : trade.side === "SHORT" ? "text-red-400" : "text-amber-400";
   const reExam = trade.latestReExamination;
@@ -294,6 +377,17 @@ function BlotterRow({ trade }: { trade: Trade }) {
           <span className="text-sm font-mono font-medium truncate">{trade.asset}</span>
           <span className={`text-[10px] font-mono font-bold uppercase tracking-wider ${sideColor}`}>{trade.side}</span>
           <span className="text-[10px] font-mono text-muted-foreground">{trade.timeframe}</span>
+          {activeWatchCount > 0 && (
+            <span
+              className="inline-flex items-center gap-0.5 text-amber-400"
+              title={`${activeWatchCount} enabled notification${activeWatchCount === 1 ? "" : "s"}`}
+            >
+              <Bell className="h-3 w-3" />
+              {activeWatchCount > 1 && (
+                <span className="text-[9px] font-mono leading-none">{activeWatchCount}</span>
+              )}
+            </span>
+          )}
         </div>
         <span className="text-[10px] text-muted-foreground shrink-0">{relativeTime(trade.createdAt)}</span>
       </div>
@@ -324,7 +418,14 @@ function BlotterRow({ trade }: { trade: Trade }) {
 const TIMEFRAMES = ["15m", "30m", "1h", "4h", "1d"] as const;
 type Timeframe = typeof TIMEFRAMES[number];
 
-function ChartPane({ trade, reExamRunning }: { trade: Trade; reExamRunning: boolean }) {
+function ChartPane({
+  trade, reExamRunning, watches, onWatchesChange,
+}: {
+  trade: Trade;
+  reExamRunning: boolean;
+  watches: PriceWatch[];
+  onWatchesChange: () => void;
+}) {
   const cardConfig = (trade.rawRun.agent?.adapterConfig as Record<string, unknown> | undefined)?.resultCard as ResultCardConfig | undefined;
   const [cardOpen, setCardOpen] = useState(true);
   const [markOpen, setMarkOpen] = useState(false);
@@ -332,12 +433,14 @@ function ChartPane({ trade, reExamRunning }: { trade: Trade; reExamRunning: bool
   const [jsonOpen, setJsonOpen] = useState(false);
   const initialTf = (TIMEFRAMES as readonly string[]).includes(trade.timeframe) ? (trade.timeframe as Timeframe) : "4h";
   const [chartInterval, setChartInterval] = useState<Timeframe>(initialTf);
+  // WAIT decisions render the chart too (candles + EMAs + volume + neutral
+  // marker at the decision); just no entry/TP/SL levels or position box.
+  const hasChart = trade.decisionAt !== null && trade.symbol.length > 0;
   const hasLevels =
     trade.side !== "WAIT" &&
     trade.entry !== null &&
     trade.takeProfit !== null &&
-    trade.stopLoss !== null &&
-    trade.decisionAt !== null;
+    trade.stopLoss !== null;
 
   // Side-tint shared by the outer container and (via embedded mode) the result card,
   // so the panel reads as one cohesive surface rather than nested cards.
@@ -395,7 +498,18 @@ function ChartPane({ trade, reExamRunning }: { trade: Trade; reExamRunning: bool
           {cardOpen && (
             <div className="px-4 pb-4">
               {cardConfig && cardConfig.type !== "none" && cardConfig.type !== "raw" ? (
-                <ResultCard config={cardConfig} data={trade.rawRun.resultJson} embedded />
+                <ResultCard
+                  config={cardConfig}
+                  data={trade.rawRun.resultJson}
+                  embedded
+                  watchContext={{
+                    runId: trade.runId,
+                    symbol: trade.symbol,
+                    interval: trade.timeframe,
+                    watches,
+                    onChange: onWatchesChange,
+                  }}
+                />
               ) : (
                 <pre className="text-xs font-mono text-foreground/80 bg-muted/40 rounded-lg p-4 overflow-x-auto whitespace-pre-wrap break-all">
                   {JSON.stringify(trade.rawRun.resultJson, null, 2)}
@@ -452,9 +566,9 @@ function ChartPane({ trade, reExamRunning }: { trade: Trade; reExamRunning: bool
             onClick={() => setChartOpen((o) => !o)}
             className="flex-1 text-left text-[11px] font-mono uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors"
           >
-            <span>{chartOpen ? "▾" : "▸"} Chart {hasLevels ? <span className="ml-1 normal-case tracking-normal text-[11px] text-muted-foreground/60">— entry / TP / SL on candles</span> : <span className="ml-1 normal-case tracking-normal text-[11px] text-muted-foreground/60">— no levels (WAIT)</span>}</span>
+            <span>{chartOpen ? "▾" : "▸"} Chart {hasLevels ? <span className="ml-1 normal-case tracking-normal text-[11px] text-muted-foreground/60">— entry / TP / SL on candles</span> : trade.side === "WAIT" ? <span className="ml-1 normal-case tracking-normal text-[11px] text-muted-foreground/60">— context for WAIT thesis</span> : null}</span>
           </button>
-          {chartOpen && hasLevels && (
+          {chartOpen && hasChart && (
             <div className="flex items-center gap-1 rounded-md border border-border p-0.5 shrink-0">
               {TIMEFRAMES.map((tf) => (
                 <button
@@ -472,22 +586,28 @@ function ChartPane({ trade, reExamRunning }: { trade: Trade; reExamRunning: bool
         </div>
         {chartOpen && (
           <div className="px-2 pb-3">
-            {hasLevels ? (
+            {hasChart ? (
               <TradeChart
                 symbol={trade.symbol}
                 interval={chartInterval}
-                side={trade.side as "LONG" | "SHORT"}
-                entry={trade.entry!}
-                takeProfit={trade.takeProfit!}
-                stopLoss={trade.stopLoss!}
+                side={trade.side}
+                entry={trade.entry}
+                takeProfit={trade.takeProfit}
+                stopLoss={trade.stopLoss}
                 decisionAt={trade.decisionAt!}
                 hitAt={trade.hitAt}
                 exitPrice={trade.exitPrice}
                 outcome={trade.outcome as "Win" | "Loss" | "NA" | null}
+                watches={watches.map((w) => ({
+                  price: w.price,
+                  label: w.label,
+                  status: w.status,
+                  direction: w.direction,
+                }))}
               />
             ) : (
               <div className="h-[200px] flex items-center justify-center text-xs text-muted-foreground">
-                No tradable levels on this decision (likely WAIT)
+                Missing asset or decision time — can't chart this run
               </div>
             )}
           </div>
@@ -656,6 +776,25 @@ function toTrade(run: HeartbeatRun, latestReExamination: Trade["latestReExaminat
     createdAt: run.createdAt,
     latestReExamination,
     rawRun: run,
+  };
+}
+
+function toChartTrade(t: Trade): ChartTrade {
+  return {
+    runId: t.runId,
+    asset: t.asset,
+    symbol: t.symbol,
+    timeframe: t.timeframe,
+    side: t.side,
+    entry: t.entry,
+    takeProfit: t.takeProfit,
+    stopLoss: t.stopLoss,
+    decisionAt: t.decisionAt,
+    hitAt: t.hitAt,
+    exitPrice: t.exitPrice,
+    outcome: t.outcome,
+    createdAt: t.createdAt,
+    resolutionStatus: t.resolutionStatus,
   };
 }
 

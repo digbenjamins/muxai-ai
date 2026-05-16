@@ -100,6 +100,9 @@ model HeartbeatRun {
   parent           HeartbeatRun?  @relation("Reexaminations", fields: [parentRunId], references: [id], onDelete: SetNull)
   reExaminations   HeartbeatRun[] @relation("Reexaminations")
 
+  // Price-level watches attached to this run (e.g. from watch_for items).
+  priceWatches     PriceWatch[]
+
   createdAt        DateTime @default(now())
 
   @@index([parentRunId])
@@ -224,6 +227,53 @@ enum WakeupStatus {
   queued
   claimed
   finished
+}
+
+// ─── Price Watch ──────────────────────────────────────────────────────────────
+// User-created price alerts attached to a run. Created via the bell next to a
+// watch_for item on the trade-decision card; checked against fresh candles by
+// the resolver tick and marked triggered when crossed. Notification firing
+// is a stub for now (logs to console).
+model PriceWatch {
+  id             String        @id @default(uuid())
+  runId          String
+  run            HeartbeatRun  @relation(fields: [runId], references: [id], onDelete: Cascade)
+  symbol         String        // normalized, e.g. "BTCUSDT"
+  interval       String?       // optional — for chart display + tick scoping
+  price          Float
+  direction      String        // "above" | "below" — derived from price vs. last close at create time
+  kind           String?       // "confirms" | "invalidates" — thesis-relative semantic; null on legacy rows
+  label          String        // free text — usually the watch_for item that prompted it, or a user-supplied message
+  status         String        @default("active") // "active" | "triggered" | "cancelled"
+  triggeredAt    DateTime?
+  triggeredPrice Float?
+  createdAt      DateTime      @default(now())
+
+  @@index([runId])
+  @@index([symbol, status])
+  @@map("price_watches")
+}
+
+// ─── Candle ───────────────────────────────────────────────────────────────────
+// OHLCV cache populated opportunistically by the resolver tick and the candles
+// HTTP route. The chart and resolver read from here first and only fetch the
+// upstream exchange to fill gaps. Excludes the currently-open bar (which
+// mutates until it closes).
+model Candle {
+  symbol    String   // normalized, e.g. "BTCUSDT"
+  interval  String   // "15m" | "30m" | "1h" | "4h" | "1d" | ...
+  openTime  BigInt   // ms epoch — bar open
+  closeTime BigInt   // ms epoch — bar close
+  open      Float
+  high      Float
+  low       Float
+  close     Float
+  volume    Float
+  fetchedAt DateTime @default(now())
+
+  @@id([symbol, interval, openTime])
+  @@index([symbol, interval, openTime(sort: Desc)])
+  @@map("candles")
 }
 
 // ─── Event ────────────────────────────────────────────────────────────────────
