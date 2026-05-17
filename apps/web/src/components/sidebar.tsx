@@ -189,7 +189,7 @@ export function Sidebar() {
 
       {/* Footer */}
       <div className="px-5 py-4 border-t border-border">
-        <p className="text-xs text-muted-foreground/50 font-mono">v2026.1.9</p>
+        <p className="text-xs text-muted-foreground/50 font-mono">v2026.2.0</p>
       </div>
     </aside>
   );

@@ -41,7 +41,7 @@ export const claudeLocalAdapter: Adapter = {
     const config = agent.adapterConfig;
     const { promptOverride, runId, isPreview, resumeSessionId } = opts;
 
-    const cwd = (config.cwd as string) || process.cwd();
+    const cwd = (config.cwd as string) || MUXAI_ROOT;
     const model = (config.model as string) || DEFAULT_MODEL;
     const maxTurns = (config.maxTurnsPerRun as number) || 10;
     const effort = config.effort as string | undefined;

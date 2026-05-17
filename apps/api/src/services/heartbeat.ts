@@ -44,7 +44,7 @@ export async function buildInvokeInfo(agentId: string) {
   const spawnConfig = await adapter.buildSpawnConfig(adapterAgent, { isPreview: true });
 
   const config = agent.adapterConfig as Record<string, unknown>;
-  const cwd = (config.cwd as string) || process.cwd();
+  const cwd = (config.cwd as string) || MUXAI_ROOT;
   const isBuiltin = cwd === MUXAI_ROOT;
   const mcpExclude = agent.reports.length > 0 ? [] : ["orchestrator"];
   const mcpConfig = isBuiltin ? JSON.parse(await buildMcpConfig(mcpExclude)) : null;

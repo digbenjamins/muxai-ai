@@ -4,6 +4,25 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.2.0] - 2026-05-17
+
+### Added
+
+- **Liquidity MCP** (`packages/mcp-liquidity/`) — price-action liquidity confluence layer for the trading desk. Reads Binance Futures klines (no API key) and exposes the eight canonical levels — previous month's high/low, previous week's high/low, this week's Monday high/low, this week's developing high/low — each tagged with sweep status (`fresh` / `wicked` / `swept` / `broken`). First sweep + close back inside is flagged as the high-probability reversal trigger; once swept a level is "spent" and not re-emitted. Detection walks ~45 days of hourly candles after each level was established.
+- `get_liquidity_levels(symbol)` — full liquidity map with per-level sweep status, sweep timestamp, wick depth, and distance from current price. Used for magnets, targets, and avoiding stale levels.
+- `get_recent_sweeps(symbol, lookback_hours)` — filtered to first-sweep reversal triggers in the lookback window. The action signal.
+- **Technical Analyst** template now ships with liquidity confluence wired in — new "Liquidity Confluence (Always run — both paths)" section in its SKILL.md, "Liquidity" step in the Analysis Framework, and "Liquidity" field in the output format. Strength rule (prev month > prev week > Monday > developing), first-sweep-only rule, and flip rule (broken levels become S/R) are spelled out so the agent acts on the data the same way every run.
+- **HARD CONSTRAINTS block** on every specialist SKILL.md (news-analyst, data-analyst, team-lead added; technical-analyst and wyckoff-analyst already had it) — explicit four-rule guard that lists `WebFetch` and `WebSearch` alongside the other built-in tools as off-limits, and warns specialists to stay in their lane even when the lead's task prompt overreaches.
+
+### Changed
+
+- **Specialist denylists now hard-block `WebFetch` and `WebSearch` at the CLI level** — every template's `disallowedTools` includes the two built-in web tools alongside `Read,Write,Edit,Bash,Grep,Glob,Agent`. Stops specialists from bypassing role boundaries by fetching e.g. Binance directly when their MCP scope doesn't cover a data type. `ToolSearch` remains allowed since it's how MCP tool schemas get loaded on demand.
+- **Non-consumer templates denylist the new liquidity tools** — `team-lead`, `news-analyst`, `data-analyst`, and `wyckoff-analyst` all add `mcp__liquidity__get_liquidity_levels` and `mcp__liquidity__get_recent_sweeps` to their `disallowedTools`, keeping liquidity confluence scoped to the Technical Analyst. (Wyckoff is the natural secondary consumer — re-enable by removing the two names from its denylist plus wiring its SKILL.md.)
+
+### Fixed
+
+- **Agent runs were spawning with no MCP config at all** when an agent's stored `cwd` was empty (the template default). The adapter fell back to `process.cwd()` of the API process (which is `apps/api/` under turbo), so `isBuiltin` evaluated false and `buildMcpConfig()` was never called — the spawned Claude CLI had no `--mcp-config` flag and no muxAI servers, only built-in tools. `apps/api/src/services/adapters/claude-local.ts` and `apps/api/src/services/heartbeat.ts` now fall back to `MUXAI_ROOT`, matching the existing behavior of the chat-runner path. New agents created from any template now resolve MCPs correctly out of the box.
+
 ## [0.1.9] - 2026-05-16
 
 ### Added
